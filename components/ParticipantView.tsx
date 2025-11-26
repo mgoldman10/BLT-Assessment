@@ -1,18 +1,20 @@
+
 import React, { useState, useEffect } from 'react';
 import { AssessmentData, Category, UserAnswers, ParticipantResponse } from '../types';
 import GameBoard from './GameBoard';
 import QuestionModal from './QuestionModal';
-import { encodeResponse } from '../services/storage';
+import { encodeResponse, addResponseToCompany } from '../services/storage'; // Added import
 import { sendAssessmentNotification } from '../services/emailService';
 import { Check, Copy, User, ArrowRight, Loader2, AlertCircle, Send } from 'lucide-react';
 
 interface ParticipantViewProps {
   companyName: string;
+  companyId?: string; // Added optional prop
   assessmentData: AssessmentData;
   onSubmit?: (response: ParticipantResponse) => void; // Optional: For admin manual entry
 }
 
-const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, assessmentData, onSubmit }) => {
+const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyId, assessmentData, onSubmit }) => {
   const [step, setStep] = useState<'WELCOME' | 'ASSESSMENT' | 'FINISHED'>('WELCOME');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -39,7 +41,7 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, assessme
     setActiveCategory(null);
   };
 
-  const handleFinish = () => {
+  const handleFinish = async () => {
     const response: ParticipantResponse = {
         id: Date.now().toString(36) + Math.random().toString(36).substr(2),
         firstName: firstName.trim(),
@@ -49,10 +51,24 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, assessme
     };
 
     if (onSubmit) {
+        // Admin Manual Entry Mode
         onSubmit(response);
     } else {
+        // Public Participant Mode
+        
+        // 1. SAVE TO DATABASE IMMEDIATELY
+        if (companyId) {
+            try {
+                await addResponseToCompany(companyId, response);
+            } catch (e) {
+                console.error("Failed to save to database", e);
+                // Continue to email step anyway so user can see backup code
+            }
+        }
+
         setStep('FINISHED');
-        // Automatically trigger email sending
+        
+        // 2. Trigger Email (Optional)
         triggerAutoEmail(response);
     }
   };

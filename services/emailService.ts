@@ -3,7 +3,7 @@
  * Service to handle sending email notifications from the application.
  */
 
-const EMAIL_API_ENDPOINT = 'YOUR_ENDPOINT_URL_HERE'; // e.g. 'https://formspree.io/f/xyzk....'
+const EMAIL_API_ENDPOINT = 'https://formspree.io/f/meowdwyo'; // e.g. 'https://formspree.io/f/xyzk....'
 
 export const sendAssessmentNotification = async (
   participantName: string,

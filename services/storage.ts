@@ -1,4 +1,3 @@
-
 import { Company, ParticipantResponse, AssessmentTemplate, User } from '../types';
 import { db, isConfigured } from './firebaseConfig';
 import { 
@@ -8,7 +7,7 @@ import {
   setDoc, 
   deleteDoc, 
   getDoc
-} from "firebase/firestore";
+} from "firebase/firestore/lite";
 
 // --- Collections ---
 const COMPANIES_COL = 'companies';

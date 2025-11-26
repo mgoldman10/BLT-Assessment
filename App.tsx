@@ -20,6 +20,7 @@ const App: React.FC = () => {
   
   // Participant State
   const [participantCompany, setParticipantCompany] = useState('');
+  const [participantCompanyId, setParticipantCompanyId] = useState<string>(''); // Added state for ID
 
   // Report State
   const [reportCompany, setReportCompany] = useState<Company | null>(null);
@@ -61,8 +62,10 @@ const App: React.FC = () => {
              const data = await getAssessmentData(targetCompany.templateId || 'default-standard');
              setAssessmentData(data);
              setParticipantCompany(companyName);
+             setParticipantCompanyId(targetCompany.id); // Store the ID
              setViewMode('PARTICIPANT');
         } else {
+             // Fallback if company not found by name (rare)
              const data = await getAssessmentData('default-standard');
              setAssessmentData(data);
              setParticipantCompany(companyName);
@@ -144,7 +147,6 @@ const App: React.FC = () => {
 
   const handleManualEntrySave = async (response: ParticipantResponse) => {
       if (manualEntryCompany) {
-          // We use the optimized addResponse function here
           await addResponseToCompany(manualEntryCompany.id, response);
           alert(`Saved response for ${response.firstName} ${response.lastName}`);
           setManualEntryCompany(null);
@@ -170,7 +172,13 @@ const App: React.FC = () => {
 
   // --- Public View ---
   if (viewMode === 'PARTICIPANT' && assessmentData) {
-    return <ParticipantView companyName={participantCompany} assessmentData={assessmentData} />;
+    return (
+        <ParticipantView 
+            companyName={participantCompany} 
+            companyId={participantCompanyId} // Pass the ID here
+            assessmentData={assessmentData} 
+        />
+    );
   }
 
   // --- Protected Views ---

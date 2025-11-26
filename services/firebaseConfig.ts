@@ -2,6 +2,7 @@ import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore/lite";
 
 // Use Environment Variables instead of hardcoding keys
+// This prevents Netlify "Secrets Scanning" errors
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -12,6 +13,7 @@ const firebaseConfig = {
 };
 
 export const isConfigured = (): boolean => {
+  // Check if the key exists and isn't the default placeholder
   return !!firebaseConfig.apiKey && firebaseConfig.apiKey !== "REPLACE_WITH_YOUR_API_KEY";
 };
 

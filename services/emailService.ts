@@ -3,7 +3,7 @@
  */
 
 // PASTE YOUR FORMSPREE URL HERE inside the quotes
-const EMAIL_API_ENDPOINT = 'https://formspree.io/f/mqkrvjwb'; 
+const EMAIL_API_ENDPOINT = 'https://formspree.io/f/meowdwyo'; 
 
 export const sendAssessmentNotification = async (
   participantName: string,

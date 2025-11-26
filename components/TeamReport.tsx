@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { AssessmentData, ParticipantResponse, SCALE_LABELS, UserAnswers } from '../types';
 import { getLogo } from '../services/storage';
 import { generateExecutiveSummary, AIAnalysisInput } from '../services/geminiService';
-import { ArrowLeft, Printer, Users, Sparkles, Loader2, FileText } from 'lucide-react';
+import { ArrowLeft, Printer, Users, Sparkles, Loader2, RefreshCw, AlertCircle } from 'lucide-react';
 
 interface TeamReportProps {
     companyName: string;
@@ -27,6 +26,7 @@ const TeamReport: React.FC<TeamReportProps> = ({
     // AI State
     const [aiSummary, setAiSummary] = useState<string | null>(null);
     const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+    const [aiError, setAiError] = useState<string | null>(null);
 
     useEffect(() => {
         setCustomLogo(getLogo());
@@ -90,6 +90,7 @@ const TeamReport: React.FC<TeamReportProps> = ({
 
     const handleGenerateAI = useCallback(async () => {
         setIsGeneratingAI(true);
+        setAiError(null);
         try {
             // 1. Prepare Data
             const allQuestions: any[] = [];
@@ -133,7 +134,7 @@ const TeamReport: React.FC<TeamReportProps> = ({
             setAiSummary(summary);
         } catch (e) {
             console.error("AI Generation failed", e);
-            // setAiSummary("Could not auto-generate summary.");
+            setAiError("AI Analysis failed. Check API Key configuration.");
         } finally {
             setIsGeneratingAI(false);
         }
@@ -141,7 +142,7 @@ const TeamReport: React.FC<TeamReportProps> = ({
 
     // Auto-generate on mount if not batch mode (batch mode might overload API if many reports)
     useEffect(() => {
-        if (mode !== 'batch' && !aiSummary && !isGeneratingAI && allResponses.length > 0) {
+        if (mode !== 'batch' && !aiSummary && !isGeneratingAI && !aiError && allResponses.length > 0) {
             handleGenerateAI();
         }
     }, []);
@@ -246,10 +247,19 @@ const TeamReport: React.FC<TeamReportProps> = ({
 
                 {/* AI Executive Summary (Always visible, compact on first page) */}
                 <div className="mb-12 border-t-2 border-slate-100 pt-6">
-                     <div className="flex items-center gap-2 mb-4">
+                     <div className="flex items-center gap-3 mb-4">
                         <Sparkles className="w-5 h-5 text-brand-orange" />
                         <h3 className="text-lg font-bold text-slate-800 uppercase tracking-wide">Executive Summary</h3>
                         {isGeneratingAI && <span className="text-xs text-slate-500 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin"/> Generating...</span>}
+                        {aiError && (
+                            <div className="flex items-center gap-2 text-red-500 text-xs font-bold bg-red-50 px-2 py-1 rounded">
+                                <AlertCircle className="w-3 h-3" /> {aiError}
+                                <button onClick={handleGenerateAI} className="underline hover:text-red-700 flex items-center gap-1"><RefreshCw className="w-3 h-3"/> Retry</button>
+                            </div>
+                        )}
+                        {!isGeneratingAI && !aiSummary && !aiError && (
+                             <button onClick={handleGenerateAI} className="text-xs text-brand-orange underline font-bold hover:text-orange-700">Generate Now</button>
+                        )}
                      </div>
                      
                      {aiSummary ? (
@@ -286,7 +296,7 @@ const TeamReport: React.FC<TeamReportProps> = ({
                         </div>
                      ) : (
                          <div className="text-slate-400 text-xs italic">
-                            {isGeneratingAI ? "Analyzing assessment data..." : "AI Summary available after data processing."}
+                            {!isGeneratingAI && !aiError && "Click 'Generate Now' to analyze results with AI."}
                          </div>
                      )}
                 </div>

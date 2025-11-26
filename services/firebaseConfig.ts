@@ -1,6 +1,6 @@
 
 import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore } from "firebase/firestore/lite";
 
 // PASTE YOUR FIREBASE CONFIGURATION HERE
 // Replace this entire object with the one you copied from the Firebase Console

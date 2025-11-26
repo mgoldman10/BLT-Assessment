@@ -1,9 +1,9 @@
-
 /**
  * Service to handle sending email notifications from the application.
  */
 
-const EMAIL_API_ENDPOINT = 'https://formspree.io/f/meowdwyo'; // e.g. 'https://formspree.io/f/xyzk....'
+// PASTE YOUR FORMSPREE URL HERE inside the quotes
+const EMAIL_API_ENDPOINT = 'https://formspree.io/f/mqkrvjwb'; 
 
 export const sendAssessmentNotification = async (
   participantName: string,
@@ -12,7 +12,8 @@ export const sendAssessmentNotification = async (
   recipientEmail: string = 'mike@mike-goldman.com'
 ): Promise<boolean> => {
   
-  if (EMAIL_API_ENDPOINT === 'YOUR_ENDPOINT_URL_HERE') {
+  // Fix: Cast to string to avoid TypeScript error TS2367
+  if ((EMAIL_API_ENDPOINT as string) === 'YOUR_ENDPOINT_URL_HERE') {
     console.warn("Email API Endpoint not configured. See services/emailService.ts");
     await new Promise(resolve => setTimeout(resolve, 1500)); 
     return false; 
@@ -45,7 +46,8 @@ export const sendUserInvite = async (
     role: string,
     passwordTemp: string
 ): Promise<boolean> => {
-  if (EMAIL_API_ENDPOINT === 'YOUR_ENDPOINT_URL_HERE') {
+  // Fix: Cast to string to avoid TypeScript error TS2367
+  if ((EMAIL_API_ENDPOINT as string) === 'YOUR_ENDPOINT_URL_HERE') {
       console.warn("Email not configured");
       await new Promise(resolve => setTimeout(resolve, 1000));
       return true; // Simulate success

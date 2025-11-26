@@ -123,6 +123,7 @@ const TeamReport: React.FC<TeamReportProps> = ({
 
             const input: AIAnalysisInput = {
                 companyName,
+                respondentCount: totalRespondents, // Pass this so AI knows if it's a single person
                 pillarScores: pillarScores.map(p => ({ name: p.name, score: p.average })),
                 topStrengths: topStrengths.map(s => ({ text: s.text, label: s.label })),
                 criticalGaps: criticalGaps.map(g => ({ text: g.text, label: g.label })),
@@ -138,7 +139,7 @@ const TeamReport: React.FC<TeamReportProps> = ({
         } finally {
             setIsGeneratingAI(false);
         }
-    }, [assessmentData, companyName, getQuestionStats, pillarScores]);
+    }, [assessmentData, companyName, getQuestionStats, pillarScores, totalRespondents]);
 
     // Auto-generate on mount if not batch mode (batch mode might overload API if many reports)
     useEffect(() => {
@@ -257,9 +258,6 @@ const TeamReport: React.FC<TeamReportProps> = ({
                                 <button onClick={handleGenerateAI} className="underline hover:text-red-700 flex items-center gap-1"><RefreshCw className="w-3 h-3"/> Retry</button>
                             </div>
                         )}
-                        {!isGeneratingAI && !aiSummary && !aiError && (
-                             <button onClick={handleGenerateAI} className="text-xs text-brand-orange underline font-bold hover:text-orange-700">Generate Now</button>
-                        )}
                      </div>
                      
                      {aiSummary ? (
@@ -283,12 +281,17 @@ const TeamReport: React.FC<TeamReportProps> = ({
                                     ) : null}
                                 </div>
                                 <div className="[&>h3]:text-brand-orange [&>h3]:font-bold [&>h3]:mb-2 [&>h3]:uppercase [&>h3]:text-xs [&>ul]:pl-4 [&>ul]:space-y-2">
-                                    {aiSummary.includes('### Areas of Misalignment') ? (
-                                        <>
-                                            <h3 className="text-brand-orange font-bold text-xs uppercase mb-2">Areas of Misalignment</h3>
+                                    <h3 className="text-brand-orange font-bold text-xs uppercase mb-2">Areas of Misalignment</h3>
+                                    {/* Single Respondent Logic Override */}
+                                    {totalRespondents === 1 ? (
+                                        <p className="italic text-slate-500">
+                                            Misalignment can only be identified if more than one leader takes the assessment. If you'd like someone else on your leadership team to take the assessment, please send them the same link you used.
+                                        </p>
+                                    ) : (
+                                        aiSummary.includes('### Areas of Misalignment') ? (
                                             <div dangerouslySetInnerHTML={{ __html: aiSummary.split('### Areas of Misalignment')[1].replace(/-/g, '•').replace(/\n/g, '<br/>') }}></div>
-                                        </>
-                                    ) : null}
+                                        ) : null
+                                    )}
                                 </div>
                             </div>
                             {/* Fallback if parsing fails */}

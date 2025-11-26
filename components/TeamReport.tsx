@@ -258,6 +258,9 @@ const TeamReport: React.FC<TeamReportProps> = ({
                                 <button onClick={handleGenerateAI} className="underline hover:text-red-700 flex items-center gap-1"><RefreshCw className="w-3 h-3"/> Retry</button>
                             </div>
                         )}
+                        {!isGeneratingAI && !aiSummary && !aiError && (
+                             <button onClick={handleGenerateAI} className="text-xs text-brand-orange underline font-bold hover:text-orange-700">Generate Now</button>
+                        )}
                      </div>
                      
                      {aiSummary ? (

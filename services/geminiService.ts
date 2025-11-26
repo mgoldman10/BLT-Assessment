@@ -1,4 +1,3 @@
-
 import { AssessmentData, AssessmentTemplate, Category, UserAnswers } from "../types";
 import { getTemplate } from "./storage";
 import { GoogleGenAI, Type } from "@google/genai";
@@ -89,6 +88,7 @@ export const generateAssessmentTemplate = async (topic: string): Promise<Omit<As
 // New function for Executive Summary
 export interface AIAnalysisInput {
     companyName: string;
+    respondentCount: number; // Added field
     pillarScores: { name: string; score: number }[];
     topStrengths: { text: string; label: string }[];
     criticalGaps: { text: string; label: string }[];
@@ -100,9 +100,9 @@ export const generateExecutiveSummary = async (data: AIAnalysisInput): Promise<s
 
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-    // Note: Scores are intentionally excluded from the data string below so the AI relies on context/labels
     const prompt = `
     Analyze the leadership assessment data for "${data.companyName}".
+    Total Respondents: ${data.respondentCount}.
     
     Data Context:
     - Pillars: ${data.pillarScores.map(p => `${p.name} (${p.score.toFixed(1)})`).join(', ')}
@@ -121,7 +121,10 @@ export const generateExecutiveSummary = async (data: AIAnalysisInput): Promise<s
     (Provide 2-3 bullet points identifying areas for improvement. Write about 2 sentences per bullet. You MUST reference the specific question number (e.g. Q12) to explain the gap. Do NOT mention the numeric score.)
 
     ### Areas of Misalignment
-    (Provide 2-3 bullet points highlighting where the team is split. If no major splits, note that the team is aligned. Write about 2 sentences per bullet. You MUST reference the specific question number (e.g. Q20).)
+    ${data.respondentCount === 1 
+        ? "(Write 'N/A' because there is only 1 respondent, so misalignment is impossible to measure.)" 
+        : "(Provide 2-3 bullet points highlighting where the team is split. If no major splits, note that the team is aligned. Write about 2 sentences per bullet. You MUST reference the specific question number (e.g. Q20).)"
+    }
 
     Constraint: Do not include an intro or conclusion. Use Markdown headers exactly as written above.
     `;

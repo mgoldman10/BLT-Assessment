@@ -1,23 +1,20 @@
-
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore/lite";
 
-// PASTE YOUR FIREBASE CONFIGURATION HERE
-// Replace this entire object with the one you copied from the Firebase Console
+// Use Environment Variables instead of hardcoding keys
 const firebaseConfig = {
-  apiKey: "AIzaSyCqAYThJEIItNJ9qyb33AHJ9Xjun5AdwFQ",
-  authDomain: "blt-assessment-4f1ae.firebaseapp.com",
-  projectId: "blt-assessment-4f1ae",
-  storageBucket: "blt-assessment-4f1ae.firebasestorage.app",
-  messagingSenderId: "274087310674",
-  appId: "1:274087310674:web:6298e1cdb1d50ef0d0368b"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-// This function checks if you have actually replaced the placeholder text above.
 export const isConfigured = (): boolean => {
-  return firebaseConfig.apiKey !== "REPLACE_WITH_YOUR_API_KEY";
+  return !!firebaseConfig.apiKey && firebaseConfig.apiKey !== "REPLACE_WITH_YOUR_API_KEY";
 };
 
-// Initialize Firebase only if configured (to avoid console errors if keys are missing)
+// Initialize Firebase only if configured
 const app = isConfigured() ? initializeApp(firebaseConfig) : undefined;
 export const db = app ? getFirestore(app) : undefined;

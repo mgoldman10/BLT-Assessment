@@ -94,11 +94,9 @@ const TeamReport: React.FC<TeamReportProps> = ({
         try {
             // 1. Prepare Data
             const allQuestions: any[] = [];
-            let globalQIndex = 0;
             
             assessmentData.categories.forEach(cat => {
                 cat.questions.forEach(q => {
-                    globalQIndex++;
                     const { average, counts, validResponsesCount } = getQuestionStats(q.id);
                     
                     // Calculate misalignment (split vote)
@@ -110,15 +108,15 @@ const TeamReport: React.FC<TeamReportProps> = ({
                     allQuestions.push({
                         text: q.text,
                         score: average,
-                        label: `Q${globalQIndex}`, // e.g. Q5
+                        label: cat.name, // Use category name as context instead of Q#
                         isSplit,
                         varianceDescription: isSplit ? `${lowVotes} Disagree vs ${highVotes} Agree` : ''
                     });
                 });
             });
 
-            const topStrengths = [...allQuestions].sort((a,b) => b.score - a.score).slice(0, 3);
-            const criticalGaps = [...allQuestions].sort((a,b) => a.score - b.score).slice(0, 3);
+            const topStrengths = [...allQuestions].sort((a,b) => b.score - a.score).slice(0, 5);
+            const criticalGaps = [...allQuestions].sort((a,b) => a.score - b.score).slice(0, 5);
             const misalignments = allQuestions.filter(q => q.isSplit).slice(0, 3);
 
             const input: AIAnalysisInput = {

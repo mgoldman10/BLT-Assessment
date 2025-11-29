@@ -88,7 +88,7 @@ export const generateAssessmentTemplate = async (topic: string): Promise<Omit<As
 // New function for Executive Summary
 export interface AIAnalysisInput {
     companyName: string;
-    respondentCount: number; // Added field
+    respondentCount: number; 
     pillarScores: { name: string; score: number }[];
     topStrengths: { text: string; label: string }[];
     criticalGaps: { text: string; label: string }[];
@@ -115,15 +115,15 @@ export const generateExecutiveSummary = async (data: AIAnalysisInput): Promise<s
     Output ONLY these 3 sections using Markdown headers:
 
     ### Key Strengths
-    (Provide 2-3 bullet points identifying top performance areas. Write about 2 sentences per bullet. You MUST reference the specific question number (e.g. Q5) to direct the user to the details. Do NOT mention the numeric score.)
+    (Identify 3-5 overall themes or patterns where the team is excelling. Synthesize the data into broader concepts rather than just listing specific questions. Write 2-3 sentences per bullet point to provide depth.)
 
     ### Critical Gaps
-    (Provide 2-3 bullet points identifying areas for improvement. Write about 2 sentences per bullet. You MUST reference the specific question number (e.g. Q12) to explain the gap. Do NOT mention the numeric score.)
+    (Identify 3-5 overall themes or patterns where the team is struggling. Synthesize the low scores into broader systemic issues (e.g. "Lack of Strategic Clarity" instead of just "Question 5 is low"). Write 2-3 sentences per bullet point.)
 
     ### Areas of Misalignment
     ${data.respondentCount === 1 
         ? "(Write 'N/A' because there is only 1 respondent, so misalignment is impossible to measure.)" 
-        : "(Provide 2-3 bullet points highlighting where the team is split. If no major splits, note that the team is aligned. Write about 2 sentences per bullet. You MUST reference the specific question number (e.g. Q20).)"
+        : "(Provide 2-3 bullet points highlighting where the team is split. If no major splits, note that the team is aligned. Write about 2 sentences per bullet.)"
     }
 
     Constraint: Do not include an intro or conclusion. Use Markdown headers exactly as written above.

@@ -131,10 +131,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
       
       // Ensure we use the selected template ID from state
       const selectedTemplateId = newCompanyTemplateId || 'default-standard';
-      
+
       await createCompany(newCompanyName.trim(), selectedTemplateId, tags);
       await refreshData();
-      
       setIsLoading(false);
       setIsCreating(false);
       setNewCompanyName('');
@@ -295,19 +294,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
     alert("Simulated data added!");
   };
 
+  // UPDATED: Correct logic to check Template ID and append ?type=
   const getShareLink = (company: Company) => {
     const baseUrl = window.location.origin + window.location.pathname;
-    const cleanPath = baseUrl.split('?')[0]; // Remove existing query params if any
+    const cleanPath = baseUrl.split('?')[0];
     
     let typeParam = 'BLT';
     
-    // Robust checking for template type
+    // Check specific IDs first
     if (company.templateId === 'default-coaching') {
         typeParam = 'Coaching';
     } else if (company.templateId === 'default-strategy') {
         typeParam = 'BLT-Extended';
     } else {
-        // Fallback: Check if we can find the template object to check its name
+        // Fallback: Check template object by name
         const template = templates.find(t => t.id === company.templateId);
         if (template) {
             const name = template.name.toLowerCase();
@@ -316,7 +316,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
         }
     }
 
-    // Use URLSearchParams to safely construct the URL
     const params = new URLSearchParams();
     params.set('company', company.name);
     params.set('type', typeParam);

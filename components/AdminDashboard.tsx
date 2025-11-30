@@ -290,16 +290,26 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
     alert("Simulated data added!");
   };
 
-  // UPDATED: Logic to append descriptive type to the URL
+  // UPDATED: Logic to append descriptive type to the URL based on Template ID
   const getShareLink = (company: Company) => {
     const baseUrl = window.location.origin + window.location.pathname;
     const cleanPath = baseUrl.split('?')[0];
-    const template = templates.find(t => t.id === company.templateId);
     
+    // Default to BLT
     let typeParam = 'BLT';
-    if (template) {
-        if (template.name.toLowerCase().includes('coaching')) typeParam = 'Coaching';
-        else if (template.name.toLowerCase().includes('35')) typeParam = 'BLT-Extended';
+    
+    // Check specific IDs first for accuracy
+    if (company.templateId === 'default-coaching') {
+        typeParam = 'Coaching';
+    } else if (company.templateId === 'default-strategy') {
+        typeParam = 'BLT-Extended';
+    } else {
+        // Fallback to name check for custom templates
+        const template = templates.find(t => t.id === company.templateId);
+        if (template) {
+            if (template.name.toLowerCase().includes('coaching')) typeParam = 'Coaching';
+            else if (template.name.toLowerCase().includes('35')) typeParam = 'BLT-Extended';
+        }
     }
 
     // Use URLSearchParams to safely construct the URL

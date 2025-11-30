@@ -302,7 +302,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
         else if (template.name.toLowerCase().includes('35')) typeParam = 'BLT-Extended';
     }
 
-    return `${cleanPath}?company=${encodeURIComponent(company.name)}&type=${typeParam}`;
+    // Use URLSearchParams to safely construct the URL
+    const params = new URLSearchParams();
+    params.set('company', company.name);
+    params.set('type', typeParam);
+
+    return `${cleanPath}?${params.toString()}`;
   };
 
   const toggleSelection = (id: string) => {
@@ -1032,7 +1037,8 @@ const TemplateEditor: React.FC<{ template: AssessmentTemplate, onSave: (t: Asses
              <div key={cat.id} className="bg-neutral-800/50 p-6 rounded-xl border border-neutral-700">
                <div className="flex justify-between items-center mb-4">
                   <div className="flex items-center gap-3 w-full"><span className="text-xs font-bold text-brand-orange uppercase tracking-wider whitespace-nowrap">Pillar {catIdx + 1}</span><input className="bg-transparent text-lg font-bold text-white w-full border-b border-neutral-700 focus:border-brand-orange outline-none pb-1" value={cat.name} onChange={e => handleCatNameChange(catIdx, e.target.value)} /></div>
-                  <button onClick={() => removeCategory(catIdx)} className="text-neutral-600 hover:text-red-400 p-2"><Trash2 className="w-4 h-4"/></button></div>
+                  <button onClick={() => removeCategory(catIdx)} className="text-neutral-600 hover:text-red-400 p-2"><Trash2 className="w-4 h-4"/></button>
+               </div>
                <div className="space-y-3 pl-4 border-l-2 border-neutral-700">
                   {cat.questions.map((q, qIdx) => (
                     <div key={q.id} className="flex gap-2"><span className="text-neutral-500 pt-3 text-xs font-mono">{qIdx + 1}.</span><textarea className="w-full bg-brand-black border border-neutral-700 rounded-lg p-2 text-sm text-brand-grey focus:ring-1 focus:ring-brand-orange outline-none resize-none" rows={2} value={q.text} onChange={e => handleQChange(catIdx, qIdx, e.target.value)} /><button onClick={() => removeQuestion(catIdx, qIdx)} className="text-neutral-700 hover:text-red-400 self-center"><X className="w-4 h-4"/></button></div>

@@ -67,10 +67,10 @@ const SEED_TEMPLATES: AssessmentTemplate[] = [
         questions: c.questions.map((q, j) => ({ id: `q-${i}-${j}`, text: q, type: 'rating' as const }))
     }))
   },
-  // NEW: Coaching Prep Survey Template
+  // NEW: Pre-Planning Survey (Formerly Coaching Prep)
   {
     id: 'default-coaching',
-    name: 'Coaching Prep Survey',
+    name: 'Pre-Planning Survey', // Updated name
     createdAt: Date.now(),
     updatedAt: Date.now(),
     categories: [

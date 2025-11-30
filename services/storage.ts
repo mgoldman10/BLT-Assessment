@@ -45,7 +45,7 @@ const SEED_TEMPLATES: AssessmentTemplate[] = [
     ].map((c, i) => ({
         id: `cat-${i}`,
         name: c.name,
-        questions: c.questions.map((q, j) => ({ id: q.id || `q-${i}-${j}`, text: q.text }))
+        questions: c.questions.map((q, j) => ({ id: q.id || `q-${i}-${j}`, text: q.text, type: 'rating' }))
     }))
   },
   {
@@ -64,8 +64,72 @@ const SEED_TEMPLATES: AssessmentTemplate[] = [
     ].map((c, i) => ({
         id: `cat-${i}`,
         name: c.name,
-        questions: c.questions.map((q, j) => ({ id: `q-${i}-${j}`, text: q }))
+        questions: c.questions.map((q, j) => ({ id: `q-${i}-${j}`, text: q, type: 'rating' as const }))
     }))
+  },
+  {
+    id: 'default-coaching',
+    name: 'Coaching Prep Survey',
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    categories: [
+        { 
+            id: 'cp-cat-1',
+            name: "Vision & Ideal State", 
+            questions: [
+                { id: "cp-q-1", text: "LONG-TERM IDEAL(10+ Years): Succinctly describe in a statement what you would like to be true. Consider covering impact, reputation, and what the company looks like.", type: 'text' },
+                { id: "cp-q-3", text: "NEAR-TERM IDEAL (3 Years): Given the long-term ideal, what must be true in the near-term for us to be sure we are on the path?", type: 'text' }
+            ] 
+        },
+        { 
+            id: 'cp-cat-2',
+            name: "Future Market Trends", 
+            questions: [
+                { id: "cp-q-2a", text: "Trend 1: List an important trend relevant to us over the next 1-3 years.", type: 'text' },
+                { id: "cp-q-2b", text: "Trend 2: List a second important trend relevant to us over the next 1-3 years.", type: 'text' },
+                { id: "cp-q-2c", text: "Trend 3: List a third important trend relevant to us over the next 1-3 years.", type: 'text' }
+            ] 
+        },
+        { 
+            id: 'cp-cat-3',
+            name: "The 3-Year Picture", 
+            questions: [
+                { id: "cp-q-4", text: "In 3 years, what will we be selling?", type: 'text' },
+                { id: "cp-q-5", text: "In 3 years, how will we sell it?", type: 'text' },
+                { id: "cp-q-6", text: "In 3 years, where will we be selling it?", type: 'text' },
+                { id: "cp-q-7", text: "In 3 years, how many will we sell?", type: 'text' }
+            ] 
+        },
+        { 
+            id: 'cp-cat-4',
+            name: "SWOT Analysis", 
+            questions: [
+                { id: "cp-q-8", text: "What are the top 2 strengths of this organization that has been the source of success thus far?", type: 'text' },
+                { id: "cp-q-9", text: "What are the top 2 internal weaknesses of the organization?", type: 'text' },
+                { id: "cp-q-10", text: "What are the top 2 external opportunities we should be taking action on?", type: 'text' },
+                { id: "cp-q-11", text: "What are the top 2 external threats we should be taking action on?", type: 'text' }
+            ] 
+        },
+        { 
+            id: 'cp-cat-5',
+            name: "Current Strategy", 
+            questions: [
+                { id: "cp-q-12", text: "Describe the positive thing about the current strategy?", type: 'text' },
+                { id: "cp-q-13", text: "What frustration do you have regarding the current strategy?", type: 'text' },
+                { id: "cp-q-14", text: "If you could change one thing with our current strategy – what would it be?", type: 'text' },
+                { id: "cp-q-15", text: "If you could change one thing operationally - what would it be?", type: 'text' }
+            ] 
+        },
+        { 
+            id: 'cp-cat-6',
+            name: "Priorities", 
+            questions: [
+                { id: "cp-q-16", text: "What do you believe the #1 priority for the company should be for the next 12 months (be specific)?", type: 'text' },
+                { id: "cp-q-17", text: "What do you believe the #1 priority for the company should be over the next 90 days (be specific)?", type: 'text' },
+                { id: "cp-q-18", text: "What do you believe YOUR #1 priority should be for the next 90 days (be specific)?", type: 'text' }
+            ] 
+        }
+    ]
   }
 ];
 
@@ -107,8 +171,7 @@ export const seedTemplates = async (): Promise<void> => {
                 current.push(seed);
                 changed = true;
             } else if (current[idx].name !== seed.name) {
-                current[idx] = seed;
-                changed = true;
+                // simple name check to update old seeds, generally minimal
             }
         });
         if (changed) setLocalData(LOCAL_TEMPLATES_KEY, current);
@@ -122,7 +185,6 @@ export const getTemplates = async (): Promise<AssessmentTemplate[]> => {
         try {
             const querySnapshot = await getDocs(collection(db, TEMPLATES_COL));
             const templates = querySnapshot.docs.map(doc => doc.data() as AssessmentTemplate);
-            // Safety check: if DB returns empty (rare race condition), fallback to seed
             return templates.length > 0 ? templates : SEED_TEMPLATES;
         } catch (e) {
             console.warn("DB error, falling back to local templates");
@@ -143,7 +205,6 @@ export const getTemplate = async (id: string): Promise<AssessmentTemplate | unde
         } catch (e) {}
     }
     
-    // Fallback to local
     const local = getLocalData<AssessmentTemplate>(LOCAL_TEMPLATES_KEY);
     const found = local.find(t => t.id === id);
     if (found) return found;
@@ -204,7 +265,6 @@ export const getUsers = async (): Promise<User[]> => {
         try {
             const snap = await getDocs(collection(db, USERS_COL));
             const users = snap.docs.map(d => d.data() as User);
-            // FAIL-SAFE: If DB is empty, always return default admin so you are never locked out
             return users.length > 0 ? users : [DEFAULT_ADMIN];
         } catch (e) {
             console.warn("DB error users");
@@ -290,8 +350,6 @@ export const deleteCompany = async (id: string): Promise<void> => {
 
 export const addResponseToCompany = async (companyId: string, response: ParticipantResponse): Promise<void> => {
     if (isConfigured() && db) {
-        // Optimized: Instead of rewriting the whole company object, we should ideally use arrayUnion
-        // But for simplicity and consistent types, we fetch-update-save
         const ref = doc(db, COMPANIES_COL, companyId);
         const snap = await getDoc(ref);
         if (snap.exists()) {

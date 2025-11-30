@@ -35,13 +35,14 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   return (
     <div className="min-h-screen bg-brand-black flex flex-col items-center justify-center p-4">
        <div className="w-full max-w-md bg-neutral-900 border border-neutral-700 rounded-3xl p-8 md:p-12 shadow-2xl">
-          <div className="flex justify-center mb-8">
+          {/* Updated Brand Logo */}
+          <div className="flex justify-center mb-10">
             <div className="flex items-center gap-3 select-none">
-                <div className="text-3xl font-bold tracking-widest text-white font-sans">
+                <div className="text-4xl font-extrabold tracking-widest text-white font-sans">
                 MIKE
                 </div>
-                <div className="flex items-center text-3xl font-bold tracking-widest text-white font-sans">
-                G<div className="w-6 h-6 bg-brand-orange rounded-full mx-0.5"></div>LDMAN
+                <div className="flex items-center text-4xl font-extrabold tracking-widest text-white font-sans">
+                G<div className="w-6 h-6 bg-brand-orange rounded-full mx-1 mt-1"></div>LDMAN
                 </div>
             </div>
           </div>
@@ -56,7 +57,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                 type="email" 
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                className="w-full px-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none"
+                className="w-full px-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none transition-all"
                 placeholder="you@mike-goldman.com"
                 required
               />
@@ -68,14 +69,14 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                 type="password" 
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                className="w-full px-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none"
+                className="w-full px-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none transition-all"
                 placeholder="••••••••"
                 required
               />
             </div>
 
             {error && (
-              <div className="p-3 bg-red-900/20 border border-red-900/50 rounded-lg flex items-center gap-2 text-red-400 text-sm">
+              <div className="p-3 bg-red-900/20 border border-red-900/50 rounded-lg flex items-center gap-2 text-red-400 text-sm animate-in fade-in slide-in-from-top-2">
                 <AlertCircle className="w-4 h-4" /> {error}
               </div>
             )}
@@ -83,7 +84,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             <button 
               type="submit" 
               disabled={loading}
-              className="w-full py-3 bg-brand-orange hover:bg-orange-600 text-white font-bold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              className="w-full py-3 bg-brand-orange hover:bg-orange-600 text-white font-bold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transform active:scale-95"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Sign In <ArrowRight className="w-4 h-4" /></>}
             </button>

@@ -191,7 +191,8 @@ const TeamReport: React.FC<TeamReportProps> = ({
                         </div>
                     )}
                     <h1 className="text-3xl md:text-4xl font-bold mb-2 text-slate-900">
-                        {mode === 'master' ? 'Aggregate Report' : (isTextSurvey ? 'Coaching Prep Survey Results' : 'Breakthrough Leadership Team Assessment')}
+                        {/* Updated Title Logic */}
+                        {mode === 'master' ? 'Aggregate Report' : (isTextSurvey ? 'Pre-Planning Survey Results' : 'Breakthrough Leadership Team Assessment')}
                     </h1>
                     <h2 className="text-xl md:text-2xl text-slate-700 mb-1">{companyName}</h2>
                     <p className="text-slate-500 text-sm">Aggregated results from {totalRespondents} participant{totalRespondents !== 1 ? 's' : ''} • {currentDate}</p>
@@ -201,7 +202,7 @@ const TeamReport: React.FC<TeamReportProps> = ({
                 {isTextSurvey ? (
                     <div className="space-y-12">
                         {assessmentData.categories.map((cat, idx) => (
-                            // Fix: Only apply page-break if it's NOT the first category (index > 0)
+                            // Only apply page-break if it's NOT the first category
                             <div key={cat.id} className={idx > 0 ? "page-break" : ""}>
                                 <div className="border-b-4 border-slate-900 mb-6 pb-2"><h2 className="text-2xl font-bold">{cat.name}</h2></div>
                                 <div className="space-y-8">

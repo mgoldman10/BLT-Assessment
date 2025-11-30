@@ -1,4 +1,3 @@
-
 export interface Question {
   id: string;
   text: string;
@@ -39,6 +38,7 @@ export interface ParticipantResponse {
   id: string;
   firstName: string;
   lastName: string;
+  email?: string; // Added email field
   timestamp: number;
   answers: UserAnswers;
 }

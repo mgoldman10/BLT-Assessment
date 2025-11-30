@@ -1,6 +1,7 @@
 export interface Question {
   id: string;
   text: string;
+  type?: 'rating' | 'text'; // Added to distinguish question types
 }
 
 export interface Category {
@@ -31,14 +32,14 @@ export enum GameState {
 }
 
 export interface UserAnswers {
-  [questionId: string]: number; // 0 to 4
+  [questionId: string]: number | string; // Updated to allow text answers
 }
 
 export interface ParticipantResponse {
   id: string;
   firstName: string;
   lastName: string;
-  email?: string; // Added email field
+  email?: string;
   timestamp: number;
   answers: UserAnswers;
 }
@@ -46,9 +47,9 @@ export interface ParticipantResponse {
 export interface Company {
   id: string;
   name: string;
-  templateId: string; // Links to the specific AssessmentTemplate used
-  tags?: string[]; // For grouping/searching
-  assessmentType?: 'standard' | 'strategy'; // DEPRECATED: Kept for migration
+  templateId: string;
+  tags?: string[];
+  assessmentType?: 'standard' | 'strategy';
   createdAt: number;
   responses: ParticipantResponse[];
 }
@@ -60,7 +61,7 @@ export interface User {
   name: string;
   email: string;
   role: UserRole;
-  password?: string; // Only visible to Super Admin for management
+  password?: string;
 }
 
 export const SCALE_LABELS = {

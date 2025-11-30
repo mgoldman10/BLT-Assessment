@@ -1,23 +1,23 @@
-
 import React, { useState, useEffect } from 'react';
 import { AssessmentData, Category, UserAnswers, ParticipantResponse } from '../types';
 import GameBoard from './GameBoard';
 import QuestionModal from './QuestionModal';
-import { encodeResponse, addResponseToCompany } from '../services/storage'; // Added import
+import { encodeResponse, addResponseToCompany } from '../services/storage'; 
 import { sendAssessmentNotification } from '../services/emailService';
-import { Check, Copy, User, ArrowRight, Loader2, AlertCircle, Send } from 'lucide-react';
+import { Check, Copy, User, ArrowRight, Loader2, AlertCircle, Send, Mail } from 'lucide-react';
 
 interface ParticipantViewProps {
   companyName: string;
-  companyId?: string; // Added optional prop
+  companyId?: string; 
   assessmentData: AssessmentData;
-  onSubmit?: (response: ParticipantResponse) => void; // Optional: For admin manual entry
+  onSubmit?: (response: ParticipantResponse) => void; 
 }
 
 const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyId, assessmentData, onSubmit }) => {
   const [step, setStep] = useState<'WELCOME' | 'ASSESSMENT' | 'FINISHED'>('WELCOME');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
   
   const [userAnswers, setUserAnswers] = useState<UserAnswers>({});
   const [activeCategory, setActiveCategory] = useState<Category | null>(null);
@@ -27,7 +27,7 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyI
 
   const handleStart = (e: React.FormEvent) => {
     e.preventDefault();
-    if (firstName.trim() && lastName.trim()) {
+    if (firstName.trim() && lastName.trim() && email.trim()) {
       setStep('ASSESSMENT');
     }
   };
@@ -46,6 +46,7 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyI
         id: Date.now().toString(36) + Math.random().toString(36).substr(2),
         firstName: firstName.trim(),
         lastName: lastName.trim(),
+        email: email.trim(),
         timestamp: Date.now(),
         answers: userAnswers
     };
@@ -62,7 +63,6 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyI
                 await addResponseToCompany(companyId, response);
             } catch (e) {
                 console.error("Failed to save to database", e);
-                // Continue to email step anyway so user can see backup code
             }
         }
 
@@ -95,6 +95,7 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyI
       id: Date.now().toString(36), 
       firstName: firstName.trim(),
       lastName: lastName.trim(),
+      email: email.trim(),
       timestamp: Date.now(),
       answers: userAnswers
   }) : '';
@@ -175,6 +176,20 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyI
                                     onChange={e => setLastName(e.target.value)}
                                     className="w-full pl-10 pr-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none"
                                     placeholder="Doe"
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Email Address</label>
+                            <div className="relative">
+                                <Mail className="absolute left-3 top-3 w-5 h-5 text-neutral-600" />
+                                <input 
+                                    type="email" 
+                                    required
+                                    value={email}
+                                    onChange={e => setEmail(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none"
+                                    placeholder="jane@company.com"
                                 />
                             </div>
                         </div>

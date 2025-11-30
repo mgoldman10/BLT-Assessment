@@ -115,4 +115,298 @@ const SEED_TEMPLATES: AssessmentTemplate[] = [
             id: 'cp-cat-5',
             name: "Current Strategy", 
             questions: [
-                { id: "cp-q-12", text: "Describe the positive thing about the current strategy?", type: 'text'
+                { id: "cp-q-12", text: "Describe the positive thing about the current strategy?", type: 'text' },
+                { id: "cp-q-13", text: "What frustration do you have regarding the current strategy?", type: 'text' },
+                { id: "cp-q-14", text: "If you could change one thing with our current strategy – what would it be?", type: 'text' },
+                { id: "cp-q-15", text: "If you could change one thing operationally - what would it be?", type: 'text' }
+            ] 
+        },
+        { 
+            id: 'cp-cat-6',
+            name: "Priorities", 
+            questions: [
+                { id: "cp-q-16", text: "What do you believe the #1 priority for the company should be for the next 12 months (be specific)?", type: 'text' },
+                { id: "cp-q-17", text: "What do you believe the #1 priority for the company should be over the next 90 days (be specific)?", type: 'text' },
+                { id: "cp-q-18", text: "What do you believe YOUR #1 priority should be for the next 90 days (be specific)?", type: 'text' }
+            ] 
+        }
+    ]
+  }
+];
+
+// --- Helper for LocalStorage ---
+const getLocalData = <T>(key: string): T[] => {
+    try {
+        const json = localStorage.getItem(key);
+        return json ? JSON.parse(json) : [];
+    } catch { return []; }
+};
+
+const setLocalData = <T>(key: string, data: T[]) => {
+    localStorage.setItem(key, JSON.stringify(data));
+};
+
+// --- Template Management ---
+
+export const seedTemplates = async (): Promise<void> => {
+    if (isConfigured() && db) {
+        // Firebase logic
+        try {
+            // Force Update All Seed Templates
+            for (const seed of SEED_TEMPLATES) {
+                const ref = doc(db, TEMPLATES_COL, seed.id);
+                // Use setDoc with merge:true to overwrite/update the template definition in the DB
+                await setDoc(ref, seed, { merge: true });
+                console.log(`Synced template: ${seed.name}`);
+            }
+        } catch (e) {
+            console.error("Firebase seeding failed", e);
+        }
+    } else {
+        // Local logic
+        const current = getLocalData<AssessmentTemplate>(LOCAL_TEMPLATES_KEY);
+        let changed = false;
+        SEED_TEMPLATES.forEach(seed => {
+            const idx = current.findIndex(c => c.id === seed.id);
+            if (idx === -1) {
+                current.push(seed);
+                changed = true;
+            } else if (current[idx].name !== seed.name) {
+                current[idx] = seed;
+                changed = true;
+            }
+        });
+        if (changed) setLocalData(LOCAL_TEMPLATES_KEY, current);
+    }
+};
+
+export const getTemplates = async (): Promise<AssessmentTemplate[]> => {
+    await seedTemplates();
+
+    if (isConfigured() && db) {
+        try {
+            const querySnapshot = await getDocs(collection(db, TEMPLATES_COL));
+            const templates = querySnapshot.docs.map(doc => doc.data() as AssessmentTemplate);
+            // Safety check: if DB returns empty (rare race condition), fallback to seed
+            return templates.length > 0 ? templates : SEED_TEMPLATES;
+        } catch (e) {
+            console.warn("DB error, falling back to local templates");
+            return SEED_TEMPLATES;
+        }
+    }
+
+    const local = getLocalData<AssessmentTemplate>(LOCAL_TEMPLATES_KEY);
+    return local.length > 0 ? local : SEED_TEMPLATES;
+};
+
+export const getTemplate = async (id: string): Promise<AssessmentTemplate | undefined> => {
+    if (isConfigured() && db) {
+        try {
+            const ref = doc(db, TEMPLATES_COL, id);
+            const snap = await getDoc(ref);
+            if (snap.exists()) return snap.data() as AssessmentTemplate;
+        } catch (e) {}
+    }
+    
+    // Fallback to local
+    const local = getLocalData<AssessmentTemplate>(LOCAL_TEMPLATES_KEY);
+    const found = local.find(t => t.id === id);
+    if (found) return found;
+
+    return SEED_TEMPLATES.find(t => t.id === id);
+};
+
+export const saveTemplate = async (template: AssessmentTemplate): Promise<void> => {
+    const updated = { ...template, updatedAt: Date.now() };
+    
+    if (isConfigured() && db) {
+        await setDoc(doc(db, TEMPLATES_COL, template.id), updated);
+        return;
+    }
+
+    const local = getLocalData<AssessmentTemplate>(LOCAL_TEMPLATES_KEY);
+    const idx = local.findIndex(t => t.id === template.id);
+    if (idx >= 0) local[idx] = updated;
+    else local.push(updated);
+    setLocalData(LOCAL_TEMPLATES_KEY, local);
+};
+
+export const deleteTemplate = async (id: string): Promise<void> => {
+    if (isConfigured() && db) {
+        await deleteDoc(doc(db, TEMPLATES_COL, id));
+        return;
+    }
+
+    const local = getLocalData<AssessmentTemplate>(LOCAL_TEMPLATES_KEY);
+    setLocalData(LOCAL_TEMPLATES_KEY, local.filter(t => t.id !== id));
+};
+
+// --- User Management ---
+
+export const seedUsers = async (): Promise<void> => {
+    if (isConfigured() && db) {
+        try {
+            const ref = doc(db, USERS_COL, DEFAULT_ADMIN.id);
+            const snap = await getDoc(ref);
+            if (!snap.exists()) {
+                await setDoc(ref, DEFAULT_ADMIN);
+            }
+        } catch (e) {
+            console.error("Firebase user seeding failed", e);
+        }
+    } else {
+        const users = getLocalData<User>(LOCAL_USERS_KEY);
+        if (users.length === 0) {
+            setLocalData(LOCAL_USERS_KEY, [DEFAULT_ADMIN]);
+        }
+    }
+}
+
+export const getUsers = async (): Promise<User[]> => {
+    await seedUsers();
+    
+    if (isConfigured() && db) {
+        try {
+            const snap = await getDocs(collection(db, USERS_COL));
+            const users = snap.docs.map(d => d.data() as User);
+            // FAIL-SAFE: If DB is empty, always return default admin so you are never locked out
+            return users.length > 0 ? users : [DEFAULT_ADMIN];
+        } catch (e) {
+            console.warn("DB error users");
+            return [DEFAULT_ADMIN];
+        }
+    }
+
+    const local = getLocalData<User>(LOCAL_USERS_KEY);
+    return local.length > 0 ? local : [DEFAULT_ADMIN];
+};
+
+export const saveUser = async (user: User): Promise<void> => {
+    if (isConfigured() && db) {
+        await setDoc(doc(db, USERS_COL, user.id), user);
+        return;
+    }
+
+    const local = getLocalData<User>(LOCAL_USERS_KEY);
+    const idx = local.findIndex(u => u.id === user.id);
+    if (idx >= 0) local[idx] = user;
+    else local.push(user);
+    setLocalData(LOCAL_USERS_KEY, local);
+};
+
+export const deleteUser = async (id: string): Promise<void> => {
+    if (isConfigured() && db) {
+        await deleteDoc(doc(db, USERS_COL, id));
+        return;
+    }
+
+    const local = getLocalData<User>(LOCAL_USERS_KEY);
+    setLocalData(LOCAL_USERS_KEY, local.filter(u => u.id !== id));
+};
+
+// --- Company Management ---
+
+export const getCompanies = async (): Promise<Company[]> => {
+    if (isConfigured() && db) {
+        try {
+            const snap = await getDocs(collection(db, COMPANIES_COL));
+            return snap.docs.map(d => d.data() as Company);
+        } catch (e) {
+            return [];
+        }
+    }
+    return getLocalData<Company>(LOCAL_COMPANIES_KEY);
+};
+
+export const saveCompany = async (company: Company): Promise<void> => {
+    if (isConfigured() && db) {
+        await setDoc(doc(db, COMPANIES_COL, company.id), company);
+        return;
+    }
+
+    const local = getLocalData<Company>(LOCAL_COMPANIES_KEY);
+    const idx = local.findIndex(c => c.id === company.id);
+    if (idx >= 0) local[idx] = company;
+    else local.push(company);
+    setLocalData(LOCAL_COMPANIES_KEY, local);
+};
+
+export const createCompany = async (name: string, templateId: string, tags: string[] = []): Promise<Company> => {
+    const newCompany: Company = {
+        id: Date.now().toString(36) + Math.random().toString(36).substr(2),
+        name,
+        templateId,
+        tags,
+        createdAt: Date.now(),
+        responses: []
+    };
+    await saveCompany(newCompany);
+    return newCompany;
+};
+
+export const deleteCompany = async (id: string): Promise<void> => {
+    if (isConfigured() && db) {
+        await deleteDoc(doc(db, COMPANIES_COL, id));
+        return;
+    }
+    const local = getLocalData<Company>(LOCAL_COMPANIES_KEY);
+    setLocalData(LOCAL_COMPANIES_KEY, local.filter(c => c.id !== id));
+};
+
+export const addResponseToCompany = async (companyId: string, response: ParticipantResponse): Promise<void> => {
+    if (isConfigured() && db) {
+        // Optimized: Instead of rewriting the whole company object, we should ideally use arrayUnion
+        // But for simplicity and consistent types, we fetch-update-save
+        const ref = doc(db, COMPANIES_COL, companyId);
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+            const comp = snap.data() as Company;
+            comp.responses.push(response);
+            await setDoc(ref, comp);
+        }
+        return;
+    }
+
+    const local = getLocalData<Company>(LOCAL_COMPANIES_KEY);
+    const company = local.find(c => c.id === companyId);
+    if (company) {
+        company.responses.push(response);
+        setLocalData(LOCAL_COMPANIES_KEY, local);
+    }
+};
+
+// --- Utils ---
+
+export const encodeResponse = (response: ParticipantResponse): string => {
+  try {
+    return btoa(JSON.stringify(response));
+  } catch (e) {
+    return "";
+  }
+};
+
+export const decodeResponse = (token: string): ParticipantResponse | null => {
+  try {
+    const json = atob(token);
+    return JSON.parse(json);
+  } catch (e) {
+    return null;
+  }
+};
+
+const LOGO_KEY = 'breakthrough_custom_logo';
+export const saveLogo = (base64: string): void => {
+  try {
+    localStorage.setItem(LOGO_KEY, base64);
+  } catch (e) {
+    alert("Logo image is too large.");
+  }
+};
+
+export const getLogo = (): string | null => {
+  return localStorage.getItem(LOGO_KEY);
+};
+
+export const removeLogo = (): void => {
+  localStorage.removeItem(LOGO_KEY);
+};

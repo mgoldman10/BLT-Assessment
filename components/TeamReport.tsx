@@ -200,8 +200,9 @@ const TeamReport: React.FC<TeamReportProps> = ({
                 {/* --- RENDER LOGIC FOR TEXT SURVEY --- */}
                 {isTextSurvey ? (
                     <div className="space-y-12">
-                        {assessmentData.categories.map((cat) => (
-                            <div key={cat.id} className="page-break">
+                        {assessmentData.categories.map((cat, idx) => (
+                            // Fix: Only apply page-break if it's NOT the first category (index > 0)
+                            <div key={cat.id} className={idx > 0 ? "page-break" : ""}>
                                 <div className="border-b-4 border-slate-900 mb-6 pb-2"><h2 className="text-2xl font-bold">{cat.name}</h2></div>
                                 <div className="space-y-8">
                                     {cat.questions.map((q) => {

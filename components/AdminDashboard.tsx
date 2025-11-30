@@ -128,8 +128,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
     if (newCompanyName.trim()) {
       setIsLoading(true);
       const tags = newCompanyTags.split(',').map(t => t.trim()).filter(t => t !== '');
-      await createCompany(newCompanyName.trim(), newCompanyTemplateId, tags);
+      
+      // Ensure we use the selected template ID from state
+      const selectedTemplateId = newCompanyTemplateId || 'default-standard';
+      
+      await createCompany(newCompanyName.trim(), selectedTemplateId, tags);
       await refreshData();
+      
       setIsLoading(false);
       setIsCreating(false);
       setNewCompanyName('');
@@ -290,25 +295,24 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
     alert("Simulated data added!");
   };
 
-  // UPDATED: Logic to append descriptive type to the URL based on Template ID
   const getShareLink = (company: Company) => {
     const baseUrl = window.location.origin + window.location.pathname;
-    const cleanPath = baseUrl.split('?')[0];
+    const cleanPath = baseUrl.split('?')[0]; // Remove existing query params if any
     
-    // Default to BLT
     let typeParam = 'BLT';
     
-    // Check specific IDs first for accuracy
+    // Robust checking for template type
     if (company.templateId === 'default-coaching') {
         typeParam = 'Coaching';
     } else if (company.templateId === 'default-strategy') {
         typeParam = 'BLT-Extended';
     } else {
-        // Fallback to name check for custom templates
+        // Fallback: Check if we can find the template object to check its name
         const template = templates.find(t => t.id === company.templateId);
         if (template) {
-            if (template.name.toLowerCase().includes('coaching')) typeParam = 'Coaching';
-            else if (template.name.toLowerCase().includes('35')) typeParam = 'BLT-Extended';
+            const name = template.name.toLowerCase();
+            if (name.includes('coaching')) typeParam = 'Coaching';
+            else if (name.includes('35')) typeParam = 'BLT-Extended';
         }
     }
 

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { login } from '../services/authService';
 import { User } from '../types';
@@ -47,7 +46,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             </div>
           </div>
 
-          <h2 className="text-2xl font-bold text-white text-center mb-2">Admin Login</h2>
+          {/* CHANGED TITLE FOR DEPLOYMENT TEST */}
+          <h2 className="text-2xl font-bold text-white text-center mb-2">System Access</h2>
           <p className="text-brand-grey text-center mb-8 text-sm">Sign in to manage assessments.</p>
 
           <form onSubmit={handleSubmit} className="space-y-4">

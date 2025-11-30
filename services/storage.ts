@@ -151,11 +151,13 @@ export const seedTemplates = async (): Promise<void> => {
     if (isConfigured() && db) {
         // Firebase logic
         try {
+            // Updated Logic: Check EACH seed template individually
             for (const seed of SEED_TEMPLATES) {
                 const ref = doc(db, TEMPLATES_COL, seed.id);
                 const snap = await getDoc(ref);
                 if (!snap.exists()) {
                     await setDoc(ref, seed);
+                    console.log(`Seeded template: ${seed.name}`);
                 }
             }
         } catch (e) {
@@ -171,7 +173,8 @@ export const seedTemplates = async (): Promise<void> => {
                 current.push(seed);
                 changed = true;
             } else if (current[idx].name !== seed.name) {
-                // simple name check to update old seeds, generally minimal
+                current[idx] = seed;
+                changed = true;
             }
         });
         if (changed) setLocalData(LOCAL_TEMPLATES_KEY, current);
@@ -185,6 +188,7 @@ export const getTemplates = async (): Promise<AssessmentTemplate[]> => {
         try {
             const querySnapshot = await getDocs(collection(db, TEMPLATES_COL));
             const templates = querySnapshot.docs.map(doc => doc.data() as AssessmentTemplate);
+            // Safety check: if DB returns empty (rare race condition), fallback to seed
             return templates.length > 0 ? templates : SEED_TEMPLATES;
         } catch (e) {
             console.warn("DB error, falling back to local templates");
@@ -205,6 +209,7 @@ export const getTemplate = async (id: string): Promise<AssessmentTemplate | unde
         } catch (e) {}
     }
     
+    // Fallback to local
     const local = getLocalData<AssessmentTemplate>(LOCAL_TEMPLATES_KEY);
     const found = local.find(t => t.id === id);
     if (found) return found;
@@ -265,6 +270,7 @@ export const getUsers = async (): Promise<User[]> => {
         try {
             const snap = await getDocs(collection(db, USERS_COL));
             const users = snap.docs.map(d => d.data() as User);
+            // FAIL-SAFE: If DB is empty, always return default admin so you are never locked out
             return users.length > 0 ? users : [DEFAULT_ADMIN];
         } catch (e) {
             console.warn("DB error users");
@@ -350,6 +356,8 @@ export const deleteCompany = async (id: string): Promise<void> => {
 
 export const addResponseToCompany = async (companyId: string, response: ParticipantResponse): Promise<void> => {
     if (isConfigured() && db) {
+        // Optimized: Instead of rewriting the whole company object, we should ideally use arrayUnion
+        // But for simplicity and consistent types, we fetch-update-save
         const ref = doc(db, COMPANIES_COL, companyId);
         const snap = await getDoc(ref);
         if (snap.exists()) {

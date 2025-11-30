@@ -294,20 +294,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
     alert("Simulated data added!");
   };
 
-  // UPDATED: Correct logic to check Template ID and append ?type=
+  // UPDATED: Ensure type parameter is always added
   const getShareLink = (company: Company) => {
     const baseUrl = window.location.origin + window.location.pathname;
     const cleanPath = baseUrl.split('?')[0];
     
     let typeParam = 'BLT';
     
-    // Check specific IDs first
+    // Check specific IDs first for accuracy
     if (company.templateId === 'default-coaching') {
         typeParam = 'Coaching';
     } else if (company.templateId === 'default-strategy') {
         typeParam = 'BLT-Extended';
     } else {
-        // Fallback: Check template object by name
+        // Fallback for custom templates
         const template = templates.find(t => t.id === company.templateId);
         if (template) {
             const name = template.name.toLowerCase();
@@ -609,7 +609,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
                                 <span className="underline decoration-dotted">{company.responses.length} Response{company.responses.length !== 1 ? 's' : ''}</span>
                             </button>
                             <div className="w-1 h-1 bg-neutral-600 rounded-full"></div>
-                            <button onClick={() => { setShareLink(getShareLink(company)); setShowShareModal(true); }} className="flex items-center gap-2 text-brand-grey hover:text-white transition-colors"><Share2 className="w-4 h-4" /> Share Link</button>
+                            <button onClick={() => { setShareLink(getShareLink(company)); setShowShareModal(true); }} className="flex items-center gap-2 text-brand-grey hover:text-white transition-colors"><Share2 className="w-4 h-4" /> Get Link 🔗</button>
                         </div>
                     </div>
                   </div>

@@ -35,6 +35,9 @@ const App: React.FC = () => {
     const getCompanyParam = () => {
         const urlParams = new URLSearchParams(window.location.search);
         const companyFromQuery = urlParams.get('company');
+        // Type is available but we rely on the company's saved template ID for logic
+        // const typeFromQuery = urlParams.get('type'); 
+        
         if (companyFromQuery) return companyFromQuery;
 
         if (window.location.hash && window.location.hash.includes('?')) {

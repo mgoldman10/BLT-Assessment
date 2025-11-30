@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Company, UserAnswers, ParticipantResponse, AssessmentTemplate, Category, User, UserRole } from '../types';
 import { getCompanies, createCompany, saveCompany, deleteCompany, decodeResponse, saveLogo, getLogo, removeLogo, getTemplates, saveTemplate, deleteTemplate, addResponseToCompany, seedTemplates, getUsers, saveUser, deleteUser } from '../services/storage';
@@ -279,6 +278,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
           id: Date.now().toString(36) + Math.random().toString(36).substr(2),
           firstName: rFirstName,
           lastName: rLastName,
+          email: `${rFirstName.toLowerCase()}.${rLastName.toLowerCase()}@example.com`,
           timestamp: Date.now(),
           answers
       };
@@ -909,12 +909,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
                  ) : (
                     <table className="w-full text-left">
                        <thead className="text-xs text-neutral-400 uppercase bg-neutral-800 sticky top-0">
-                          <tr><th className="p-3 rounded-tl-lg">Name</th><th className="p-3">Date</th><th className="p-3 rounded-tr-lg text-right">Action</th></tr>
+                          <tr>
+                              <th className="p-3 rounded-tl-lg">Name</th>
+                              <th className="p-3">Email</th> {/* Added Email Column */}
+                              <th className="p-3">Date</th>
+                              <th className="p-3 rounded-tr-lg text-right">Action</th>
+                          </tr>
                        </thead>
                        <tbody className="divide-y divide-neutral-800">
                           {managingCompany.responses.map((r) => (
                              <tr key={r.id} className="hover:bg-neutral-800/50">
                                 <td className="p-3 text-white font-medium">{r.firstName} {r.lastName}</td>
+                                <td className="p-3 text-brand-grey text-sm">{r.email || '-'}</td> {/* Display Email */}
                                 <td className="p-3 text-neutral-400 text-sm">{new Date(r.timestamp).toLocaleDateString()} {new Date(r.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
                                 <td className="p-3 text-right">
                                    <button onClick={() => setResponseToDelete({ companyId: managingCompany.id, responseId: r.id, name: `${r.firstName} ${r.lastName}` })} className="text-neutral-500 hover:text-red-400 p-1 transition-colors"><Trash2 className="w-4 h-4" /></button>

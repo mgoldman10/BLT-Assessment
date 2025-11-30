@@ -35,16 +35,13 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   return (
     <div className="min-h-screen bg-brand-black flex flex-col items-center justify-center p-4">
        <div className="w-full max-w-md bg-neutral-900 border border-neutral-700 rounded-3xl p-8 md:p-12 shadow-2xl">
-          {/* Updated Brand Logo */}
+          {/* Logo Section */}
           <div className="flex justify-center mb-10">
-            <div className="flex items-center gap-3 select-none">
-                <div className="text-4xl font-extrabold tracking-widest text-white font-sans">
-                MIKE
-                </div>
-                <div className="flex items-center text-4xl font-extrabold tracking-widest text-white font-sans">
-                G<div className="w-6 h-6 bg-brand-orange rounded-full mx-1 mt-1"></div>LDMAN
-                </div>
-            </div>
+            <img 
+                src="https://mikegoldman.com/wp-content/uploads/2019/02/MikeGoldman-Logo.png" 
+                alt="Mike Goldman Logo" 
+                className="h-12 md:h-16 object-contain"
+            />
           </div>
 
           <h2 className="text-2xl font-bold text-white text-center mb-2">Admin Login</h2>

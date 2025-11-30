@@ -294,24 +294,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
     alert("Simulated data added!");
   };
 
-  // UPDATED: Ensure type parameter is always added
+  // UPDATED: Correct logic to set type=Pre-Planning
   const getShareLink = (company: Company) => {
     const baseUrl = window.location.origin + window.location.pathname;
     const cleanPath = baseUrl.split('?')[0];
     
     let typeParam = 'BLT';
     
-    // Check specific IDs first for accuracy
     if (company.templateId === 'default-coaching') {
-        typeParam = 'Coaching';
+        typeParam = 'Pre-Planning'; // Updated to match new name
     } else if (company.templateId === 'default-strategy') {
         typeParam = 'BLT-Extended';
     } else {
-        // Fallback for custom templates
         const template = templates.find(t => t.id === company.templateId);
         if (template) {
             const name = template.name.toLowerCase();
-            if (name.includes('coaching')) typeParam = 'Coaching';
+            if (name.includes('coaching') || name.includes('planning')) typeParam = 'Pre-Planning';
             else if (name.includes('35')) typeParam = 'BLT-Extended';
         }
     }

@@ -5,7 +5,7 @@ import { isConfigured } from '../services/firebaseConfig';
 import { getAssessmentData, generateAssessmentTemplate } from '../services/geminiService';
 import { logout } from '../services/authService';
 import { sendUserInvite } from '../services/emailService';
-import { Plus, BarChart2, Trash2, Users, Terminal, Share2, X, Search, Calendar, Copy, Check, Layers, Printer, UserPlus, Edit3, Settings, Upload, Image as ImageIcon, AlertTriangle, FileText, LayoutList, Tag, Filter, ArrowUpDown, RotateCcw, RefreshCw, Cloud, HardDrive, Sparkles, Loader2, LogOut, ChevronDown, CheckSquare, Square, Shield, Mail, Lock } from 'lucide-react';
+import { Plus, BarChart2, Trash2, Users, Terminal, Share2, X, Search, Calendar, Copy, Check, Layers, Printer, UserPlus, Edit3, Settings, Upload, Image as ImageIcon, AlertTriangle, FileText, LayoutList, Tag, Filter, ArrowUpDown, RotateCcw, RefreshCw, Cloud, HardDrive, Sparkles, Loader2, LogOut, ChevronDown, CheckSquare, Square, Shield, Mail, Lock, Clock } from 'lucide-react';
 
 interface AdminDashboardProps {
   user: User;
@@ -24,7 +24,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
-  const [sortOption, setSortOption] = useState<'date-desc' | 'date-asc' | 'name-asc' | 'name-desc' | 'resp-desc' | 'resp-asc'>('date-desc');
+  // Default sort is now "Last Activity"
+  const [sortOption, setSortOption] = useState<'activity' | 'date-desc' | 'date-asc' | 'name-asc' | 'name-desc' | 'resp-desc' | 'resp-asc'>('activity');
   const [filterTag, setFilterTag] = useState<string>('');
   const [filterTemplateIds, setFilterTemplateIds] = useState<Set<string>>(new Set());
   const [isTemplateFilterOpen, setIsTemplateFilterOpen] = useState(false);
@@ -128,10 +129,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
     if (newCompanyName.trim()) {
       setIsLoading(true);
       const tags = newCompanyTags.split(',').map(t => t.trim()).filter(t => t !== '');
-      
-      // Ensure we use the selected template ID from state
       const selectedTemplateId = newCompanyTemplateId || 'default-standard';
-
       await createCompany(newCompanyName.trim(), selectedTemplateId, tags);
       await refreshData();
       setIsLoading(false);
@@ -294,15 +292,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
     alert("Simulated data added!");
   };
 
-  // UPDATED: Correct logic to set type=Pre-Planning
   const getShareLink = (company: Company) => {
     const baseUrl = window.location.origin + window.location.pathname;
     const cleanPath = baseUrl.split('?')[0];
     
     let typeParam = 'BLT';
-    
     if (company.templateId === 'default-coaching') {
-        typeParam = 'Pre-Planning'; // Updated to match new name
+        typeParam = 'Pre-Planning';
     } else if (company.templateId === 'default-strategy') {
         typeParam = 'BLT-Extended';
     } else {
@@ -358,13 +354,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
     })
     .sort((a, b) => {
         switch (sortOption) {
+            case 'activity': return (b.lastActivity || 0) - (a.lastActivity || 0);
             case 'date-desc': return b.createdAt - a.createdAt;
             case 'date-asc': return a.createdAt - b.createdAt;
             case 'name-asc': return a.name.localeCompare(b.name);
             case 'name-desc': return b.name.localeCompare(a.name);
             case 'resp-desc': return b.responses.length - a.responses.length;
             case 'resp-asc': return a.responses.length - b.responses.length;
-            default: return b.createdAt - a.createdAt;
+            default: return (b.lastActivity || 0) - (a.lastActivity || 0);
         }
     });
 
@@ -387,7 +384,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
       setFilterTemplateIds(new Set());
       setFilterStartDate('');
       setFilterEndDate('');
-      setSortOption('date-desc');
+      setSortOption('activity');
   };
 
   return (
@@ -556,6 +553,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
                 <div className="flex items-center gap-2 text-sm text-brand-grey border-l border-neutral-700 pl-4">
                     <ArrowUpDown className="w-4 h-4" /> Sort:
                     <select value={sortOption} onChange={(e) => setSortOption(e.target.value as any)} className="appearance-none pl-3 pr-8 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-sm text-white focus:ring-1 focus:ring-brand-orange outline-none cursor-pointer hover:border-neutral-500">
+                        <option value="activity">Last Activity</option>
                         <option value="date-desc">Newest First</option>
                         <option value="date-asc">Oldest First</option>
                         <option value="name-asc">Name (A-Z)</option>
@@ -578,10 +576,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
             <div className="grid gap-4">
               {filteredCompanies.map(company => {
                 const template = templates.find(t => t.id === company.templateId);
+                // Determine if unread: Last Activity is NEWER than Last Viewed
+                const isUnread = company.lastActivity && (!company.viewedAt || company.lastActivity > company.viewedAt);
+
                 return (
                 <div key={company.id} className={`bg-neutral-800 p-6 rounded-2xl border flex flex-col lg:flex-row gap-6 justify-between items-start lg:items-center transition-all shadow-sm ${selectedIds.has(company.id) ? 'border-brand-orange ring-1 ring-brand-orange/50 bg-orange-900/10' : 'border-neutral-700 hover:border-neutral-500'}`}>
                   <div className="flex items-start gap-4 flex-1 w-full">
-                    <input type="checkbox" checked={selectedIds.has(company.id)} onChange={() => toggleSelection(company.id)} className="mt-2 w-4 h-4 rounded border-neutral-600 text-brand-orange bg-brand-black flex-shrink-0 focus:ring-brand-orange" />
+                    <div className="flex flex-col items-center gap-2">
+                       <input type="checkbox" checked={selectedIds.has(company.id)} onChange={() => toggleSelection(company.id)} className="w-4 h-4 rounded border-neutral-600 text-brand-orange bg-brand-black flex-shrink-0 focus:ring-brand-orange" />
+                       {isUnread && <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]" title="New Activity"></div>}
+                    </div>
                     <div className="flex-1">
                         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-2">
                           <h3 className="text-2xl font-bold text-white break-words">{company.name}</h3>
@@ -590,6 +594,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
                           </div>
                           {template && (
                             <span className="px-2 py-1 rounded text-[10px] uppercase font-bold bg-brand-black text-brand-grey border border-neutral-700">{template.name}</span>
+                          )}
+                          {company.lastActivity && (
+                             <span className="px-2 py-1 rounded text-[10px] uppercase font-bold bg-neutral-800 text-neutral-400 border border-neutral-700 flex items-center gap-1">
+                                <Clock className="w-3 h-3" /> Active: {new Date(company.lastActivity).toLocaleDateString()}
+                             </span>
                           )}
                         </div>
                         
@@ -615,7 +624,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
                   <div className="flex flex-wrap gap-3 w-full lg:w-auto pl-8 lg:pl-0">
                     <button onClick={() => handleSimulateData(company)} className="px-4 py-2 bg-neutral-900 hover:bg-neutral-950 text-brand-grey border border-neutral-700 rounded-lg text-sm font-medium transition-colors"><Terminal className="w-4 h-4 inline mr-2" /> Sim</button>
                     <button onClick={() => { setActiveCompanyId(company.id); setShowImportModal(true); }} className="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg text-sm font-medium transition-colors"><UserPlus className="w-4 h-4 inline mr-2" /> Input</button>
-                    <button onClick={() => onViewReport(company)} disabled={company.responses.length === 0} className="px-4 py-2 bg-brand-orange hover:bg-orange-600 disabled:bg-neutral-700 disabled:text-neutral-500 text-white rounded-lg text-sm font-bold transition-colors"><BarChart2 className="w-4 h-4 inline mr-2" /> Report</button>
+                    <button onClick={() => onViewReport(company)} disabled={company.responses.length === 0} className="px-4 py-2 bg-brand-orange hover:bg-orange-600 disabled:bg-neutral-700 disabled:text-neutral-500 text-white rounded-lg text-sm font-bold transition-colors relative">
+                        <BarChart2 className="w-4 h-4 inline mr-2" /> Report
+                        {isUnread && <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-neutral-800"></span>}
+                    </button>
                     <button onClick={() => startRenamingCompany(company)} className="px-3 py-2 text-brand-grey hover:text-brand-orange transition-colors border border-transparent hover:border-orange-900/30 rounded-lg" title="Edit Name"><Edit3 className="w-5 h-5" /></button>
                     <button onClick={() => setCompanyToDelete(company)} className="px-3 py-2 text-brand-grey hover:text-red-400 transition-colors border border-transparent hover:border-red-900/30 rounded-lg" title="Delete"><Trash2 className="w-5 h-5" /></button>
                   </div>

@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Company, UserAnswers, ParticipantResponse, AssessmentTemplate, Category, User, UserRole } from '../types';
-import { getCompanies, createCompany, saveCompany, deleteCompany, decodeResponse, saveLogo, getLogo, removeLogo, getTemplates, saveTemplate, deleteTemplate, addResponseToCompany, seedTemplates, getUsers, saveUser, deleteUser } from '../services/storage';
+import { getCompanies, createCompany, saveCompany, deleteCompany, decodeResponse, saveLogo, getLogo, removeLogo, getTemplates, saveTemplate, deleteTemplate, addResponseToCompany, seedTemplates, getUsers, saveUser, deleteUser, updateUserPassword } from '../services/storage'; // Added updateUserPassword
 import { isConfigured } from '../services/firebaseConfig';
 import { getAssessmentData, generateAssessmentTemplate } from '../services/geminiService';
 import { logout } from '../services/authService';
 import { sendUserInvite } from '../services/emailService';
-import { Plus, BarChart2, Trash2, Users, Terminal, Share2, X, Search, Calendar, Copy, Check, Layers, Printer, UserPlus, Edit3, Settings, Upload, Image as ImageIcon, AlertTriangle, FileText, LayoutList, Tag, Filter, ArrowUpDown, RotateCcw, RefreshCw, Cloud, HardDrive, Sparkles, Loader2, LogOut, ChevronDown, CheckSquare, Square, Shield, Mail, Lock, Clock } from 'lucide-react';
+import { Plus, BarChart2, Trash2, Users, Terminal, Share2, X, Search, Calendar, Copy, Check, Layers, Printer, UserPlus, Edit3, Settings, Upload, Image as ImageIcon, AlertTriangle, FileText, LayoutList, Tag, Filter, ArrowUpDown, RotateCcw, RefreshCw, Cloud, HardDrive, Sparkles, Loader2, LogOut, ChevronDown, CheckSquare, Square, Shield, Mail, Lock, Clock, Key } from 'lucide-react';
 
 interface AdminDashboardProps {
   user: User;
@@ -48,6 +48,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
   const [newUserRole, setNewUserRole] = useState<UserRole>('ADMIN');
   const [newUserPassword, setNewUserPassword] = useState('');
   const [sendInvite, setSendInvite] = useState(true);
+  
+  // Change Password State
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPasswordInput, setNewPasswordInput] = useState('');
+  const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
 
   // AI Generation State
   const [showAIModal, setShowAIModal] = useState(false);
@@ -104,6 +110,24 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
     setTemplates(t);
     setUsers(u);
     setIsLoading(false);
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (newPasswordInput !== confirmPasswordInput) {
+          alert("New passwords do not match.");
+          return;
+      }
+      // In a real backend, we would verify currentPassword on the server.
+      // Here, we check against the loaded user object for security simulation.
+      if (user.password && user.password !== currentPassword) {
+          alert("Current password incorrect.");
+          return;
+      }
+
+      await updateUserPassword(user.id, newPasswordInput);
+      alert("Password updated successfully. Please log in again.");
+      onLogout();
   };
 
   const handleReseed = async () => {
@@ -402,6 +426,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
           </div>
         </div>
         <div className="flex gap-3">
+            <button
+                onClick={() => {
+                    setNewPasswordInput('');
+                    setConfirmPasswordInput('');
+                    setCurrentPassword('');
+                    setShowChangePasswordModal(true);
+                }}
+                className="px-4 py-3 bg-neutral-800 hover:bg-neutral-700 text-white rounded-xl font-bold flex items-center gap-2 transition-colors shadow-lg border border-brand-grey/10"
+                title="Change Password"
+            >
+                <Key className="w-5 h-5" />
+            </button>
             {isSuperAdmin && (
                 <button 
                     onClick={() => setShowSettingsModal(true)}
@@ -740,6 +776,35 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
       )}
 
       {/* --- MODALS --- */}
+
+      {/* Change Password Modal */}
+      {showChangePasswordModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-black/90 backdrop-blur-sm">
+          <div className="bg-neutral-900 p-8 rounded-2xl border border-neutral-700 w-full max-w-md shadow-2xl">
+            <h3 className="text-xl font-bold text-white mb-6">Change Password</h3>
+            <form onSubmit={handleChangePassword}>
+              <div className="space-y-4 mb-6">
+                <div>
+                   <label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Current Password</label>
+                   <input type="password" required value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} className="w-full px-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none" />
+                </div>
+                <div>
+                   <label className="block text-xs font-bold text-neutral-500 uppercase mb-1">New Password</label>
+                   <input type="password" required value={newPasswordInput} onChange={e => setNewPasswordInput(e.target.value)} className="w-full px-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none" />
+                </div>
+                <div>
+                   <label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Confirm New Password</label>
+                   <input type="password" required value={confirmPasswordInput} onChange={e => setConfirmPasswordInput(e.target.value)} className="w-full px-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none" />
+                </div>
+              </div>
+              <div className="flex gap-3 justify-end">
+                <button type="button" onClick={() => setShowChangePasswordModal(false)} className="px-4 py-2 bg-neutral-800 text-white rounded-lg font-bold">Cancel</button>
+                <button type="submit" className="px-6 py-2 bg-brand-orange hover:bg-orange-600 text-white rounded-lg font-bold shadow-lg">Update</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       
       {/* AI Generation Modal */}
       {showAIModal && (

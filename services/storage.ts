@@ -6,7 +6,8 @@ import {
   getDocs, 
   setDoc, 
   deleteDoc, 
-  getDoc
+  getDoc,
+  updateDoc 
 } from "firebase/firestore/lite";
 
 // --- Collections ---
@@ -274,6 +275,21 @@ export const saveUser = async (user: User): Promise<void> => {
     if (idx >= 0) local[idx] = user;
     else local.push(user);
     setLocalData(LOCAL_USERS_KEY, local);
+};
+
+// New: Update specific user password
+export const updateUserPassword = async (userId: string, newPassword: string): Promise<void> => {
+    if (isConfigured() && db) {
+        const ref = doc(db, USERS_COL, userId);
+        await updateDoc(ref, { password: newPassword });
+        return;
+    }
+    const local = getLocalData<User>(LOCAL_USERS_KEY);
+    const idx = local.findIndex(u => u.id === userId);
+    if (idx >= 0) {
+        local[idx].password = newPassword;
+        setLocalData(LOCAL_USERS_KEY, local);
+    }
 };
 
 export const deleteUser = async (id: string): Promise<void> => {

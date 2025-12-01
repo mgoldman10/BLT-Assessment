@@ -1,7 +1,7 @@
 export interface Question {
   id: string;
   text: string;
-  type?: 'rating' | 'text'; // Added to distinguish question types
+  type?: 'rating' | 'text';
 }
 
 export interface Category {
@@ -32,14 +32,14 @@ export enum GameState {
 }
 
 export interface UserAnswers {
-  [questionId: string]: number | string; // Updated to allow text answers
+  [questionId: string]: number | string; 
 }
 
 export interface ParticipantResponse {
   id: string;
   firstName: string;
   lastName: string;
-  email?: string;
+  email?: string; 
   timestamp: number;
   answers: UserAnswers;
 }
@@ -47,11 +47,13 @@ export interface ParticipantResponse {
 export interface Company {
   id: string;
   name: string;
-  templateId: string;
-  tags?: string[];
+  templateId: string; 
+  tags?: string[]; 
   assessmentType?: 'standard' | 'strategy';
   createdAt: number;
   responses: ParticipantResponse[];
+  lastActivity?: number; // Timestamp of most recent response
+  viewedAt?: number; // Timestamp when admin last viewed the report
 }
 
 export type UserRole = 'SUPER_ADMIN' | 'ADMIN';

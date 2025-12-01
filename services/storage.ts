@@ -150,20 +150,15 @@ const setLocalData = <T>(key: string, data: T[]) => {
 
 export const seedTemplates = async (): Promise<void> => {
     if (isConfigured() && db) {
-        // Firebase logic
         try {
-            // Force Update All Seed Templates
             for (const seed of SEED_TEMPLATES) {
                 const ref = doc(db, TEMPLATES_COL, seed.id);
-                // Use setDoc with merge:true to overwrite/update the template definition in the DB
                 await setDoc(ref, seed, { merge: true });
-                console.log(`Synced template: ${seed.name}`);
             }
         } catch (e) {
             console.error("Firebase seeding failed", e);
         }
     } else {
-        // Local logic
         const current = getLocalData<AssessmentTemplate>(LOCAL_TEMPLATES_KEY);
         let changed = false;
         SEED_TEMPLATES.forEach(seed => {
@@ -182,19 +177,16 @@ export const seedTemplates = async (): Promise<void> => {
 
 export const getTemplates = async (): Promise<AssessmentTemplate[]> => {
     await seedTemplates();
-
     if (isConfigured() && db) {
         try {
             const querySnapshot = await getDocs(collection(db, TEMPLATES_COL));
             const templates = querySnapshot.docs.map(doc => doc.data() as AssessmentTemplate);
-            // Safety check: if DB returns empty (rare race condition), fallback to seed
             return templates.length > 0 ? templates : SEED_TEMPLATES;
         } catch (e) {
             console.warn("DB error, falling back to local templates");
             return SEED_TEMPLATES;
         }
     }
-
     const local = getLocalData<AssessmentTemplate>(LOCAL_TEMPLATES_KEY);
     return local.length > 0 ? local : SEED_TEMPLATES;
 };
@@ -207,23 +199,18 @@ export const getTemplate = async (id: string): Promise<AssessmentTemplate | unde
             if (snap.exists()) return snap.data() as AssessmentTemplate;
         } catch (e) {}
     }
-    
-    // Fallback to local
     const local = getLocalData<AssessmentTemplate>(LOCAL_TEMPLATES_KEY);
     const found = local.find(t => t.id === id);
     if (found) return found;
-
     return SEED_TEMPLATES.find(t => t.id === id);
 };
 
 export const saveTemplate = async (template: AssessmentTemplate): Promise<void> => {
     const updated = { ...template, updatedAt: Date.now() };
-    
     if (isConfigured() && db) {
         await setDoc(doc(db, TEMPLATES_COL, template.id), updated);
         return;
     }
-
     const local = getLocalData<AssessmentTemplate>(LOCAL_TEMPLATES_KEY);
     const idx = local.findIndex(t => t.id === template.id);
     if (idx >= 0) local[idx] = updated;
@@ -236,7 +223,6 @@ export const deleteTemplate = async (id: string): Promise<void> => {
         await deleteDoc(doc(db, TEMPLATES_COL, id));
         return;
     }
-
     const local = getLocalData<AssessmentTemplate>(LOCAL_TEMPLATES_KEY);
     setLocalData(LOCAL_TEMPLATES_KEY, local.filter(t => t.id !== id));
 };
@@ -264,19 +250,16 @@ export const seedUsers = async (): Promise<void> => {
 
 export const getUsers = async (): Promise<User[]> => {
     await seedUsers();
-    
     if (isConfigured() && db) {
         try {
             const snap = await getDocs(collection(db, USERS_COL));
             const users = snap.docs.map(d => d.data() as User);
-            // FAIL-SAFE: If DB is empty, always return default admin so you are never locked out
             return users.length > 0 ? users : [DEFAULT_ADMIN];
         } catch (e) {
             console.warn("DB error users");
             return [DEFAULT_ADMIN];
         }
     }
-
     const local = getLocalData<User>(LOCAL_USERS_KEY);
     return local.length > 0 ? local : [DEFAULT_ADMIN];
 };
@@ -286,7 +269,6 @@ export const saveUser = async (user: User): Promise<void> => {
         await setDoc(doc(db, USERS_COL, user.id), user);
         return;
     }
-
     const local = getLocalData<User>(LOCAL_USERS_KEY);
     const idx = local.findIndex(u => u.id === user.id);
     if (idx >= 0) local[idx] = user;
@@ -299,7 +281,6 @@ export const deleteUser = async (id: string): Promise<void> => {
         await deleteDoc(doc(db, USERS_COL, id));
         return;
     }
-
     const local = getLocalData<User>(LOCAL_USERS_KEY);
     setLocalData(LOCAL_USERS_KEY, local.filter(u => u.id !== id));
 };
@@ -323,7 +304,6 @@ export const saveCompany = async (company: Company): Promise<void> => {
         await setDoc(doc(db, COMPANIES_COL, company.id), company);
         return;
     }
-
     const local = getLocalData<Company>(LOCAL_COMPANIES_KEY);
     const idx = local.findIndex(c => c.id === company.id);
     if (idx >= 0) local[idx] = company;
@@ -353,24 +333,40 @@ export const deleteCompany = async (id: string): Promise<void> => {
     setLocalData(LOCAL_COMPANIES_KEY, local.filter(c => c.id !== id));
 };
 
+// Updated: Track lastActivity on response
 export const addResponseToCompany = async (companyId: string, response: ParticipantResponse): Promise<void> => {
     if (isConfigured() && db) {
-        // Optimized: Instead of rewriting the whole company object, we should ideally use arrayUnion
-        // But for simplicity and consistent types, we fetch-update-save
         const ref = doc(db, COMPANIES_COL, companyId);
         const snap = await getDoc(ref);
         if (snap.exists()) {
             const comp = snap.data() as Company;
             comp.responses.push(response);
+            comp.lastActivity = Date.now(); // Update activity timestamp
             await setDoc(ref, comp);
         }
         return;
     }
-
     const local = getLocalData<Company>(LOCAL_COMPANIES_KEY);
     const company = local.find(c => c.id === companyId);
     if (company) {
         company.responses.push(response);
+        company.lastActivity = Date.now(); // Update activity timestamp
+        setLocalData(LOCAL_COMPANIES_KEY, local);
+    }
+};
+
+// New: Mark company as viewed by admin
+export const markCompanyViewed = async (companyId: string): Promise<void> => {
+    if (isConfigured() && db) {
+        const ref = doc(db, COMPANIES_COL, companyId);
+        // We merge to avoid overwriting responses if they came in concurrently
+        await setDoc(ref, { viewedAt: Date.now() }, { merge: true });
+        return;
+    }
+    const local = getLocalData<Company>(LOCAL_COMPANIES_KEY);
+    const company = local.find(c => c.id === companyId);
+    if (company) {
+        company.viewedAt = Date.now();
         setLocalData(LOCAL_COMPANIES_KEY, local);
     }
 };

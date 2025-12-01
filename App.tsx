@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AssessmentData, Company, ParticipantResponse, User } from './types';
 import { getAssessmentData } from './services/geminiService';
-import { getCompanies, saveCompany, addResponseToCompany } from './services/storage';
+import { getCompanies, saveCompany, addResponseToCompany, markCompanyViewed } from './services/storage'; // Added markCompanyViewed
 import { getCurrentUser, logout } from './services/authService';
 import LoadingSpinner from './components/LoadingSpinner';
 import TeamReport from './components/TeamReport';
@@ -35,9 +35,6 @@ const App: React.FC = () => {
     const getCompanyParam = () => {
         const urlParams = new URLSearchParams(window.location.search);
         const companyFromQuery = urlParams.get('company');
-        // Type is available but we rely on the company's saved template ID for logic
-        // const typeFromQuery = urlParams.get('type'); 
-        
         if (companyFromQuery) return companyFromQuery;
 
         if (window.location.hash && window.location.hash.includes('?')) {
@@ -102,6 +99,10 @@ const App: React.FC = () => {
 
   const handleViewReport = async (company: Company) => {
     setIsLoading(true);
+    
+    // Mark as viewed so the badge disappears
+    await markCompanyViewed(company.id);
+
     const data = await getAssessmentData(company.templateId || 'default-standard');
     setAssessmentData(data);
     setReportCompany(company);

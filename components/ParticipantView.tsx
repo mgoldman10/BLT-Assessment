@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { AssessmentData, Category, UserAnswers, ParticipantResponse } from '../types';
 import GameBoard from './GameBoard';
 import QuestionModal from './QuestionModal';
-import { addResponseToCompany } from '../services/storage'; 
-import { Check, Copy, User, ArrowRight, Loader2, AlertCircle, Send, Mail } from 'lucide-react';
+import { encodeResponse, addResponseToCompany, createCompany, getSettings } from '../services/storage'; 
+import { triggerAutomationWebhook } from '../services/webhookService';
+import { Check, Copy, User, ArrowRight, Loader2, AlertCircle, Send, Mail, Building } from 'lucide-react';
 
 interface ParticipantViewProps {
   companyName: string;
@@ -17,13 +18,18 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyI
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
+  const [publicCompanyName, setPublicCompanyName] = useState(''); // For public self-registration
   
   const [userAnswers, setUserAnswers] = useState<UserAnswers>({});
   const [activeCategory, setActiveCategory] = useState<Category | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const isPublicMode = companyId === 'PUBLIC_NEW';
 
   const handleStart = (e: React.FormEvent) => {
     e.preventDefault();
     if (firstName.trim() && lastName.trim() && email.trim()) {
+      if (isPublicMode && !publicCompanyName.trim()) return;
       setStep('ASSESSMENT');
     }
   };
@@ -38,6 +44,7 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyI
   };
 
   const handleFinish = async () => {
+    setIsSubmitting(true);
     const response: ParticipantResponse = {
         id: Date.now().toString(36) + Math.random().toString(36).substr(2),
         firstName: firstName.trim(),
@@ -48,22 +55,47 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyI
     };
 
     if (onSubmit) {
-        // Admin Manual Entry Mode
         onSubmit(response);
     } else {
-        // Public Participant Mode
-        
-        // 1. SAVE TO DATABASE
-        if (companyId) {
+        let finalCompanyId = companyId;
+        let finalCompanyName = companyName;
+
+        // Handle Public Self-Registration
+        if (isPublicMode) {
             try {
-                await addResponseToCompany(companyId, response);
+                const newComp = await createCompany(publicCompanyName.trim(), 'default-strategy', ['From Website']);
+                finalCompanyId = newComp.id;
+                finalCompanyName = newComp.name;
             } catch (e) {
-                console.error("Failed to save to database", e);
+                console.error("Error creating public company", e);
             }
+        }
+
+        // Save Response to Database
+        if (finalCompanyId) {
+            await addResponseToCompany(finalCompanyId, response);
+        }
+
+        // Trigger Webhook Automation (Mailchimp/Email)
+        try {
+            const settings = await getSettings();
+            if (settings.webhookUrl && finalCompanyId) {
+                const reportLink = `${window.location.origin}/?company=${encodeURIComponent(finalCompanyName)}`;
+                await triggerAutomationWebhook(settings.webhookUrl, {
+                    participant: response,
+                    companyName: finalCompanyName,
+                    reportLink: reportLink,
+                    assessmentName: assessmentData.topic,
+                    shareLink: reportLink
+                });
+            }
+        } catch (e) {
+            console.error("Webhook trigger error", e);
         }
 
         setStep('FINISHED');
     }
+    setIsSubmitting(false);
   };
 
   // Calculate start index for continuous numbering (1-30)
@@ -105,13 +137,30 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyI
                 <div className="text-center mb-8">
                     <h1 className="text-2xl font-bold text-white mb-2">Welcome</h1>
                     <p className="text-brand-grey">
-                        You are taking the assessment for <br/>
-                        <span className="text-brand-orange font-bold">{companyName}</span>
+                        {isPublicMode ? "Start your free team assessment." : (
+                            <>You are taking the assessment for <br/><span className="text-brand-orange font-bold">{companyName}</span></>
+                        )}
                     </p>
                 </div>
 
                 <form onSubmit={handleStart}>
                     <div className="space-y-4 mb-8">
+                        {isPublicMode && (
+                            <div>
+                                <label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Company / Team Name</label>
+                                <div className="relative">
+                                    <Building className="absolute left-3 top-3 w-5 h-5 text-neutral-600" />
+                                    <input 
+                                        type="text" 
+                                        required
+                                        value={publicCompanyName}
+                                        onChange={e => setPublicCompanyName(e.target.value)}
+                                        className="w-full pl-10 pr-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none"
+                                        placeholder="Acme Inc."
+                                    />
+                                </div>
+                            </div>
+                        )}
                         <div>
                             <label className="block text-xs font-bold text-neutral-500 uppercase mb-1">First Name</label>
                             <div className="relative">
@@ -177,7 +226,7 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyI
                 </div>
                 <h1 className="text-3xl font-bold text-white mb-4">Assessment Complete</h1>
                 <p className="text-brand-grey mb-8 text-lg">
-                    Thank you, <span className="text-white font-bold">{firstName}</span>. Your responses for <span className="text-brand-orange font-bold">{companyName}</span> have been recorded.
+                    Thank you, <span className="text-white font-bold">{firstName}</span>. Your responses for <span className="text-brand-orange font-bold">{companyName || publicCompanyName}</span> have been recorded.
                 </p>
                 <div className="text-sm text-neutral-500">You may close this window.</div>
             </div>
@@ -192,16 +241,17 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyI
         <div className="px-3 py-2 md:p-4 flex justify-between items-center">
             <div className="flex-1 min-w-0 pr-2">
                 <h1 className="text-brand-grey text-[9px] md:text-xs uppercase tracking-widest font-bold">Assessment For</h1>
-                <div className="text-sm md:text-lg font-bold text-white truncate max-w-full">{companyName}</div>
+                <div className="text-sm md:text-lg font-bold text-white truncate max-w-full">{companyName || publicCompanyName}</div>
             </div>
 
             {/* Quick Submit in Header if Complete (Desktop Only, Mobile has large button below) */}
             {isOverallComplete && (
                  <button 
                     onClick={handleFinish}
-                    className="hidden md:flex px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg font-bold items-center gap-2 animate-pulse"
+                    disabled={isSubmitting}
+                    className="hidden md:flex px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg font-bold items-center gap-2 animate-pulse disabled:opacity-50"
                 >
-                    <Send className="w-4 h-4" /> Submit
+                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : <Send className="w-4 h-4" />} Submit
                 </button>
             )}
 

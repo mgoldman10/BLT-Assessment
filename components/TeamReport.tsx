@@ -33,7 +33,15 @@ const TeamReport: React.FC<TeamReportProps> = ({
     const [aiError, setAiError] = useState<string | null>(null);
 
     useEffect(() => {
-        setCustomLogo(getLogo());
+        const loadLogo = async () => {
+            try {
+                const logo = await getLogo();
+                setCustomLogo(logo);
+            } catch (e) {
+                console.error("Failed to load logo", e);
+            }
+        };
+        loadLogo();
     }, []);
 
     // Helper: Try to find an answer even if the ID format in the DB is slightly different
@@ -191,7 +199,6 @@ const TeamReport: React.FC<TeamReportProps> = ({
                         </div>
                     )}
                     <h1 className="text-3xl md:text-4xl font-bold mb-2 text-slate-900">
-                        {/* Updated Title Logic */}
                         {mode === 'master' ? 'Aggregate Report' : (isTextSurvey ? 'Pre-Planning Survey Results' : 'Breakthrough Leadership Team Assessment')}
                     </h1>
                     <h2 className="text-xl md:text-2xl text-slate-700 mb-1">{companyName}</h2>

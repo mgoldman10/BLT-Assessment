@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AssessmentData, Company, ParticipantResponse, User } from './types';
 import { getAssessmentData } from './services/geminiService';
-import { getCompanies, saveCompany, addResponseToCompany, markCompanyViewed, getSettings } from './services/storage'; 
+import { getCompanies, saveCompany, addResponseToCompany, markCompanyViewed, getSettings, createCompany } from './services/storage'; 
 import { getCurrentUser, logout } from './services/authService';
 import { triggerAutomationWebhook } from './services/webhookService';
 import LoadingSpinner from './components/LoadingSpinner';
@@ -53,14 +53,15 @@ const App: React.FC = () => {
     const templateId = getParam('template') || 'default-strategy';
 
     const loadData = async () => {
+      // Check for Public/Embed Mode
       if (mode === 'public') {
-          // Public Lead Magnet Mode
           const data = await getAssessmentData(templateId);
           setAssessmentData(data);
-          setParticipantCompany(''); 
-          setParticipantCompanyId('PUBLIC_NEW'); 
+          setParticipantCompany(''); // Will be set by user
+          setParticipantCompanyId('PUBLIC_NEW'); // Special flag
           setViewMode('PARTICIPANT');
       } 
+      // Check for Invite Mode
       else if (companyName) {
         const companies = await getCompanies();
         const targetCompany = companies.find(c => c.name === companyName);
@@ -105,10 +106,7 @@ const App: React.FC = () => {
 
   const handleViewReport = async (company: Company) => {
     setIsLoading(true);
-    
-    // Mark as viewed to clear badge
     await markCompanyViewed(company.id);
-
     const data = await getAssessmentData(company.templateId || 'default-standard');
     setAssessmentData(data);
     setReportCompany(company);
@@ -116,70 +114,28 @@ const App: React.FC = () => {
     setIsLoading(false);
   };
 
-  const handleBatchPrint = (companies: Company[]) => {
-    setBatchCompanies(companies);
-    setViewMode('BATCH_PRINT');
-  };
-
+  // ... (Batch, Master, Manual Entry handlers identical to previous) ...
+  const handleBatchPrint = (companies: Company[]) => { setBatchCompanies(companies); setViewMode('BATCH_PRINT'); };
   const handleMasterReport = async (companies: Company[]) => {
     setIsLoading(true);
     const primaryTemplateId = companies[0]?.templateId || 'default-standard';
     const data = await getAssessmentData(primaryTemplateId);
     setAssessmentData(data);
-
     const allResponses: ParticipantResponse[] = [];
-    companies.forEach(c => {
-        allResponses.push(...c.responses);
-    });
-
-    const masterCompany: Company = {
-        id: 'master-report',
-        name: `Aggregate Report (${companies.length} Companies)`,
-        templateId: primaryTemplateId,
-        createdAt: Date.now(),
-        responses: allResponses
-    };
-
+    companies.forEach(c => { allResponses.push(...c.responses); });
+    const masterCompany: Company = { id: 'master-report', name: `Aggregate Report (${companies.length} Companies)`, templateId: primaryTemplateId, createdAt: Date.now(), responses: allResponses };
     setMasterReportData(masterCompany);
     setViewMode('MASTER_REPORT');
     setIsLoading(false);
   };
-  
-  const handleManualEntryStart = async (company: Company) => {
-      setIsLoading(true);
-      const data = await getAssessmentData(company.templateId || 'default-standard');
-      setAssessmentData(data);
-      setManualEntryCompany(company);
-      setViewMode('MANUAL_ENTRY');
-      setIsLoading(false);
-  };
+  const handleManualEntryStart = async (company: Company) => { setIsLoading(true); const data = await getAssessmentData(company.templateId || 'default-standard'); setAssessmentData(data); setManualEntryCompany(company); setViewMode('MANUAL_ENTRY'); setIsLoading(false); };
+  const handleManualEntrySave = async (response: ParticipantResponse) => { if (manualEntryCompany) { await addResponseToCompany(manualEntryCompany.id, response); alert(`Saved response for ${response.firstName} ${response.lastName}`); setManualEntryCompany(null); setViewMode('DASHBOARD'); } };
+  const handleBackToDashboard = () => { setReportCompany(null); setBatchCompanies([]); setMasterReportData(null); setManualEntryCompany(null); setViewMode('DASHBOARD'); };
 
-  const handleManualEntrySave = async (response: ParticipantResponse) => {
-      if (manualEntryCompany) {
-          await addResponseToCompany(manualEntryCompany.id, response);
-          alert(`Saved response for ${response.firstName} ${response.lastName}`);
-          setManualEntryCompany(null);
-          setViewMode('DASHBOARD');
-      }
-  };
+  // ... (Render logic) ...
 
-  const handleBackToDashboard = () => {
-    setReportCompany(null);
-    setBatchCompanies([]);
-    setMasterReportData(null);
-    setManualEntryCompany(null);
-    setViewMode('DASHBOARD');
-  };
+  if (isLoading) return <div className="min-h-screen bg-slate-900 text-slate-50 flex items-center justify-center"><LoadingSpinner message="Loading..." /></div>;
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-slate-900 text-slate-50 flex items-center justify-center">
-        <LoadingSpinner message="Loading..." />
-      </div>
-    );
-  }
-
-  // --- Public View ---
   if (viewMode === 'PARTICIPANT' && assessmentData) {
     return (
         <ParticipantView 
@@ -189,79 +145,24 @@ const App: React.FC = () => {
         />
     );
   }
-
-  // --- Protected Views ---
   
-  if (viewMode === 'LOGIN') {
-    return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
-  }
+  if (viewMode === 'LOGIN') return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
 
   if (viewMode === 'MANUAL_ENTRY' && assessmentData && manualEntryCompany) {
       return (
         <div className="relative">
-            <div className="absolute top-4 left-4 z-50">
-                <button onClick={handleBackToDashboard} className="px-4 py-2 bg-slate-800 text-white rounded-lg shadow-lg font-bold text-xs hover:bg-slate-700">
-                    Cancel Entry
-                </button>
-            </div>
-            <ParticipantView 
-                companyName={manualEntryCompany.name} 
-                assessmentData={assessmentData} 
-                onSubmit={handleManualEntrySave}
-            />
+            <div className="absolute top-4 left-4 z-50"><button onClick={handleBackToDashboard} className="px-4 py-2 bg-slate-800 text-white rounded-lg shadow-lg font-bold text-xs hover:bg-slate-700">Cancel Entry</button></div>
+            <ParticipantView companyName={manualEntryCompany.name} assessmentData={assessmentData} onSubmit={handleManualEntrySave} />
         </div>
       );
   }
 
-  if (viewMode === 'SINGLE_REPORT' && reportCompany && assessmentData) {
-    return (
-      <TeamReport 
-        companyName={reportCompany.name}
-        assessmentData={assessmentData} 
-        allResponses={reportCompany.responses} 
-        onRestart={handleBackToDashboard}
-        mode="single"
-      />
-    );
-  }
+  if (viewMode === 'SINGLE_REPORT' && reportCompany && assessmentData) return <TeamReport companyName={reportCompany.name} assessmentData={assessmentData} allResponses={reportCompany.responses} onRestart={handleBackToDashboard} mode="single" />;
+  if (viewMode === 'BATCH_PRINT') return <BatchPrintView companies={batchCompanies} onBack={handleBackToDashboard} />;
+  if (viewMode === 'MASTER_REPORT' && masterReportData && assessmentData) return <TeamReport companyName={masterReportData.name} assessmentData={assessmentData} allResponses={masterReportData.responses} onRestart={handleBackToDashboard} mode="master" />;
 
-  if (viewMode === 'BATCH_PRINT') {
-    return (
-        <BatchPrintView 
-            companies={batchCompanies}
-            onBack={handleBackToDashboard}
-        />
-    );
-  }
-
-  if (viewMode === 'MASTER_REPORT' && masterReportData && assessmentData) {
-      return (
-        <TeamReport
-            companyName={masterReportData.name}
-            assessmentData={assessmentData}
-            allResponses={masterReportData.responses}
-            onRestart={handleBackToDashboard}
-            mode="master"
-        />
-      );
-  }
-
-  if (user) {
-    return (
-      <div className="min-h-screen bg-slate-900 text-slate-50 font-sans selection:bg-blue-500/30">
-        <AdminDashboard 
-            user={user}
-            onLogout={handleLogout}
-            onViewReport={handleViewReport} 
-            onBatchPrint={handleBatchPrint}
-            onMasterReport={handleMasterReport}
-            onManualEntry={handleManualEntryStart}
-        />
-      </div>
-    );
-  }
+  if (user) return <div className="min-h-screen bg-slate-900 text-slate-50 font-sans selection:bg-blue-500/30"><AdminDashboard user={user} onLogout={handleLogout} onViewReport={handleViewReport} onBatchPrint={handleBatchPrint} onMasterReport={handleMasterReport} onManualEntry={handleManualEntryStart} /></div>;
   
-  // Fallback
   return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
 };
 

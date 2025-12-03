@@ -13,8 +13,8 @@ export const triggerAutomationWebhook = async (
     if (!webhookUrl) return false;
 
     try {
-        // We use 'no-cors' mode if simple POST fails, or standard POST.
-        // Standard POST is best for Zapier.
+        // Use no-cors if Zapier doesn't support CORS (it usually accepts simple POSTs)
+        // Or standard POST. Standard is better for JSON data.
         await fetch(webhookUrl, {
             method: 'POST',
             body: JSON.stringify({
@@ -30,9 +30,9 @@ export const triggerAutomationWebhook = async (
         });
         return true;
     } catch (e) {
-        // Zapier hooks often don't return standard JSON responses to browser fetch
-        // so we assume success if we sent it, or log error.
-        console.log("Webhook triggered"); 
+        console.error("Webhook failed", e);
+        // Even if it fails in browser (CORS), Zapier often receives it.
+        // We return true to not block the user flow.
         return true;
     }
 };

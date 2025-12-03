@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { AssessmentData, Company, ParticipantResponse, User } from './types';
 import { getAssessmentData } from './services/geminiService';
-import { getCompanies, saveCompany, addResponseToCompany, markCompanyViewed } from './services/storage'; // Added markCompanyViewed
+import { getCompanies, saveCompany, addResponseToCompany, markCompanyViewed, getSettings } from './services/storage'; 
 import { getCurrentUser, logout } from './services/authService';
+import { triggerAutomationWebhook } from './services/webhookService';
 import LoadingSpinner from './components/LoadingSpinner';
 import TeamReport from './components/TeamReport';
 import AdminDashboard from './components/AdminDashboard';
@@ -19,7 +20,7 @@ const App: React.FC = () => {
   
   // Participant State
   const [participantCompany, setParticipantCompany] = useState('');
-  const [participantCompanyId, setParticipantCompanyId] = useState<string>(''); // Added state for ID
+  const [participantCompanyId, setParticipantCompanyId] = useState<string>(''); 
 
   // Report State
   const [reportCompany, setReportCompany] = useState<Company | null>(null);
@@ -32,28 +33,35 @@ const App: React.FC = () => {
   const [assessmentData, setAssessmentData] = useState<AssessmentData | null>(null);
 
   useEffect(() => {
-    const getCompanyParam = () => {
+    const getParam = (key: string) => {
         const urlParams = new URLSearchParams(window.location.search);
-        const companyFromQuery = urlParams.get('company');
-        if (companyFromQuery) return companyFromQuery;
+        const param = urlParams.get(key);
+        if (param) return param;
 
         if (window.location.hash && window.location.hash.includes('?')) {
             try {
                 const hashString = window.location.hash.split('?')[1];
                 const hashParams = new URLSearchParams(hashString);
-                return hashParams.get('company');
-            } catch (e) {
-                console.warn("Error parsing hash params", e);
-            }
+                return hashParams.get(key);
+            } catch (e) {}
         }
         return null;
     };
 
-    const companyName = getCompanyParam();
+    const companyName = getParam('company');
+    const mode = getParam('mode');
+    const templateId = getParam('template') || 'default-strategy';
 
     const loadData = async () => {
-      // 1. Check for Participant Mode (User clicking a link)
-      if (companyName) {
+      if (mode === 'public') {
+          // Public Lead Magnet Mode
+          const data = await getAssessmentData(templateId);
+          setAssessmentData(data);
+          setParticipantCompany(''); 
+          setParticipantCompanyId('PUBLIC_NEW'); 
+          setViewMode('PARTICIPANT');
+      } 
+      else if (companyName) {
         const companies = await getCompanies();
         const targetCompany = companies.find(c => c.name === companyName);
         
@@ -61,17 +69,15 @@ const App: React.FC = () => {
              const data = await getAssessmentData(targetCompany.templateId || 'default-standard');
              setAssessmentData(data);
              setParticipantCompany(companyName);
-             setParticipantCompanyId(targetCompany.id); // Store the ID
+             setParticipantCompanyId(targetCompany.id); 
              setViewMode('PARTICIPANT');
         } else {
-             // Fallback if company not found by name (rare)
              const data = await getAssessmentData('default-standard');
              setAssessmentData(data);
              setParticipantCompany(companyName);
              setViewMode('PARTICIPANT');
         }
       } else {
-        // 2. Dashboard Mode - Check Auth
         const currentUser = getCurrentUser();
         if (currentUser) {
           setUser(currentUser);
@@ -100,7 +106,7 @@ const App: React.FC = () => {
   const handleViewReport = async (company: Company) => {
     setIsLoading(true);
     
-    // Mark as viewed so the badge disappears
+    // Mark as viewed to clear badge
     await markCompanyViewed(company.id);
 
     const data = await getAssessmentData(company.templateId || 'default-standard');
@@ -178,7 +184,7 @@ const App: React.FC = () => {
     return (
         <ParticipantView 
             companyName={participantCompany} 
-            companyId={participantCompanyId} // Pass the ID here
+            companyId={participantCompanyId} 
             assessmentData={assessmentData} 
         />
     );

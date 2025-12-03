@@ -56,9 +56,10 @@ export interface Company {
   viewedAt?: number;
 }
 
+// NEW: Settings for automation
 export interface AppSettings {
     logoUrl?: string;
-    webhookUrl?: string;
+    webhookUrl?: string; // The Zapier URL
 }
 
 export type UserRole = 'SUPER_ADMIN' | 'ADMIN';

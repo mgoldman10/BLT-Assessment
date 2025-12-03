@@ -7,7 +7,7 @@ import {
   setDoc, 
   deleteDoc, 
   getDoc,
-  updateDoc 
+  updateDoc
 } from "firebase/firestore/lite";
 
 // --- Collections ---
@@ -71,10 +71,10 @@ const SEED_TEMPLATES: AssessmentTemplate[] = [
         questions: c.questions.map((q, j) => ({ id: `q-${i}-${j}`, text: q, type: 'rating' as const }))
     }))
   },
-  // NEW: Pre-Planning Survey (Formerly Coaching Prep)
+  // NEW: Pre-Planning Survey
   {
     id: 'default-coaching',
-    name: 'Pre-Planning Survey', // Updated name
+    name: 'Pre-Planning Survey', 
     createdAt: Date.now(),
     updatedAt: Date.now(),
     categories: [
@@ -138,19 +138,7 @@ const SEED_TEMPLATES: AssessmentTemplate[] = [
   }
 ];
 
-// --- Helper for LocalStorage ---
-const getLocalData = <T>(key: string): T[] => {
-    try {
-        const json = localStorage.getItem(key);
-        return json ? JSON.parse(json) : [];
-    } catch { return []; }
-};
-
-const setLocalData = <T>(key: string, data: T[]) => {
-    localStorage.setItem(key, JSON.stringify(data));
-};
-
-// --- Settings Management ---
+// --- Settings Management (NEW) ---
 export const getSettings = async (): Promise<AppSettings> => {
     if (isConfigured() && db) {
         try {
@@ -167,13 +155,12 @@ export const saveSettings = async (settings: AppSettings): Promise<void> => {
     if (isConfigured() && db) {
         await setDoc(doc(db, SETTINGS_COL, SETTINGS_DOC_ID), settings, { merge: true });
     }
-    // Always save local for backup/speed
-    const current = await getSettings(); // Retrieve current to merge
+    const current = await getSettings(); 
     const newSettings = { ...current, ...settings };
     localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(newSettings));
 };
 
-// Re-export logo functions to use the new Settings system
+// Re-export logo functions to use Settings
 export const saveLogo = async (base64: string): Promise<void> => {
     await saveSettings({ logoUrl: base64 });
 };
@@ -185,6 +172,18 @@ export const getLogo = async (): Promise<string | null> => {
 
 export const removeLogo = async (): Promise<void> => {
     await saveSettings({ logoUrl: '' });
+};
+
+// --- Helper for LocalStorage ---
+const getLocalData = <T>(key: string): T[] => {
+    try {
+        const json = localStorage.getItem(key);
+        return json ? JSON.parse(json) : [];
+    } catch { return []; }
+};
+
+const setLocalData = <T>(key: string, data: T[]) => {
+    localStorage.setItem(key, JSON.stringify(data));
 };
 
 // --- Template Management ---
@@ -317,7 +316,6 @@ export const saveUser = async (user: User): Promise<void> => {
     setLocalData(LOCAL_USERS_KEY, local);
 };
 
-// New: Update specific user password
 export const updateUserPassword = async (userId: string, newPassword: string): Promise<void> => {
     if (isConfigured() && db) {
         const ref = doc(db, USERS_COL, userId);
@@ -389,7 +387,6 @@ export const deleteCompany = async (id: string): Promise<void> => {
     setLocalData(LOCAL_COMPANIES_KEY, local.filter(c => c.id !== id));
 };
 
-// Updated: Track lastActivity on response
 export const addResponseToCompany = async (companyId: string, response: ParticipantResponse): Promise<void> => {
     if (isConfigured() && db) {
         const ref = doc(db, COMPANIES_COL, companyId);
@@ -397,7 +394,7 @@ export const addResponseToCompany = async (companyId: string, response: Particip
         if (snap.exists()) {
             const comp = snap.data() as Company;
             comp.responses.push(response);
-            comp.lastActivity = Date.now(); // Update activity timestamp
+            comp.lastActivity = Date.now(); 
             await setDoc(ref, comp);
         }
         return;
@@ -406,16 +403,14 @@ export const addResponseToCompany = async (companyId: string, response: Particip
     const company = local.find(c => c.id === companyId);
     if (company) {
         company.responses.push(response);
-        company.lastActivity = Date.now(); // Update activity timestamp
+        company.lastActivity = Date.now(); 
         setLocalData(LOCAL_COMPANIES_KEY, local);
     }
 };
 
-// New: Mark company as viewed by admin
 export const markCompanyViewed = async (companyId: string): Promise<void> => {
     if (isConfigured() && db) {
         const ref = doc(db, COMPANIES_COL, companyId);
-        // We merge to avoid overwriting responses if they came in concurrently
         await setDoc(ref, { viewedAt: Date.now() }, { merge: true });
         return;
     }
@@ -426,8 +421,6 @@ export const markCompanyViewed = async (companyId: string): Promise<void> => {
         setLocalData(LOCAL_COMPANIES_KEY, local);
     }
 };
-
-// --- Utils ---
 
 export const encodeResponse = (response: ParticipantResponse): string => {
   try {
@@ -445,6 +438,3 @@ export const decodeResponse = (token: string): ParticipantResponse | null => {
     return null;
   }
 };
-
-// Logo functions use Settings now
-// Keeping these wrappers for backward compat

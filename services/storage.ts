@@ -71,10 +71,10 @@ const SEED_TEMPLATES: AssessmentTemplate[] = [
         questions: c.questions.map((q, j) => ({ id: `q-${i}-${j}`, text: q, type: 'rating' as const }))
     }))
   },
-  // NEW: Pre-Planning Survey
+  // NEW: Pre-Planning Survey (Formerly Coaching Prep)
   {
     id: 'default-coaching',
-    name: 'Pre-Planning Survey', 
+    name: 'Pre-Planning Survey',
     createdAt: Date.now(),
     updatedAt: Date.now(),
     categories: [
@@ -138,7 +138,7 @@ const SEED_TEMPLATES: AssessmentTemplate[] = [
   }
 ];
 
-// --- Settings Management (NEW) ---
+// --- Settings Management ---
 export const getSettings = async (): Promise<AppSettings> => {
     if (isConfigured() && db) {
         try {
@@ -316,6 +316,7 @@ export const saveUser = async (user: User): Promise<void> => {
     setLocalData(LOCAL_USERS_KEY, local);
 };
 
+// New: Update specific user password
 export const updateUserPassword = async (userId: string, newPassword: string): Promise<void> => {
     if (isConfigured() && db) {
         const ref = doc(db, USERS_COL, userId);
@@ -387,6 +388,7 @@ export const deleteCompany = async (id: string): Promise<void> => {
     setLocalData(LOCAL_COMPANIES_KEY, local.filter(c => c.id !== id));
 };
 
+// Updated: Track lastActivity on response
 export const addResponseToCompany = async (companyId: string, response: ParticipantResponse): Promise<void> => {
     if (isConfigured() && db) {
         const ref = doc(db, COMPANIES_COL, companyId);
@@ -394,7 +396,7 @@ export const addResponseToCompany = async (companyId: string, response: Particip
         if (snap.exists()) {
             const comp = snap.data() as Company;
             comp.responses.push(response);
-            comp.lastActivity = Date.now(); 
+            comp.lastActivity = Date.now(); // Update activity timestamp
             await setDoc(ref, comp);
         }
         return;
@@ -403,14 +405,16 @@ export const addResponseToCompany = async (companyId: string, response: Particip
     const company = local.find(c => c.id === companyId);
     if (company) {
         company.responses.push(response);
-        company.lastActivity = Date.now(); 
+        company.lastActivity = Date.now(); // Update activity timestamp
         setLocalData(LOCAL_COMPANIES_KEY, local);
     }
 };
 
+// New: Mark company as viewed by admin
 export const markCompanyViewed = async (companyId: string): Promise<void> => {
     if (isConfigured() && db) {
         const ref = doc(db, COMPANIES_COL, companyId);
+        // We merge to avoid overwriting responses if they came in concurrently
         await setDoc(ref, { viewedAt: Date.now() }, { merge: true });
         return;
     }
@@ -421,6 +425,8 @@ export const markCompanyViewed = async (companyId: string): Promise<void> => {
         setLocalData(LOCAL_COMPANIES_KEY, local);
     }
 };
+
+// --- Utils ---
 
 export const encodeResponse = (response: ParticipantResponse): string => {
   try {

@@ -57,11 +57,25 @@ const App: React.FC = () => {
       if (mode === 'public') {
           const data = await getAssessmentData(templateId);
           setAssessmentData(data);
-          setParticipantCompany(''); // Will be set by user
-          setParticipantCompanyId('PUBLIC_NEW'); // Special flag
+          setParticipantCompany(''); 
+          setParticipantCompanyId('PUBLIC_NEW'); 
           setViewMode('PARTICIPANT');
-      } 
-      // Check for Invite Mode
+      }
+      // NEW: Check for Public Result View Mode (from Email Link)
+      else if (mode === 'view_result' && companyName) {
+          const companies = await getCompanies();
+          const targetCompany = companies.find(c => c.name === companyName);
+          if (targetCompany) {
+              const data = await getAssessmentData(targetCompany.templateId || 'default-standard');
+              setAssessmentData(data);
+              setReportCompany(targetCompany);
+              setViewMode('SINGLE_REPORT');
+          } else {
+              // Handle invalid link (company not found)
+              setViewMode('LOGIN'); 
+          }
+      }
+      // Check for Invite/Participant Mode
       else if (companyName) {
         const companies = await getCompanies();
         const targetCompany = companies.find(c => c.name === companyName);
@@ -114,25 +128,66 @@ const App: React.FC = () => {
     setIsLoading(false);
   };
 
-  // ... (Batch, Master, Manual Entry handlers identical to previous) ...
-  const handleBatchPrint = (companies: Company[]) => { setBatchCompanies(companies); setViewMode('BATCH_PRINT'); };
+  const handleBatchPrint = (companies: Company[]) => {
+    setBatchCompanies(companies);
+    setViewMode('BATCH_PRINT');
+  };
+
   const handleMasterReport = async (companies: Company[]) => {
     setIsLoading(true);
     const primaryTemplateId = companies[0]?.templateId || 'default-standard';
     const data = await getAssessmentData(primaryTemplateId);
     setAssessmentData(data);
+
     const allResponses: ParticipantResponse[] = [];
-    companies.forEach(c => { allResponses.push(...c.responses); });
-    const masterCompany: Company = { id: 'master-report', name: `Aggregate Report (${companies.length} Companies)`, templateId: primaryTemplateId, createdAt: Date.now(), responses: allResponses };
+    companies.forEach(c => {
+        allResponses.push(...c.responses);
+    });
+
+    const masterCompany: Company = {
+        id: 'master-report',
+        name: `Aggregate Report (${companies.length} Companies)`,
+        templateId: primaryTemplateId,
+        createdAt: Date.now(),
+        responses: allResponses
+    };
+
     setMasterReportData(masterCompany);
     setViewMode('MASTER_REPORT');
     setIsLoading(false);
   };
-  const handleManualEntryStart = async (company: Company) => { setIsLoading(true); const data = await getAssessmentData(company.templateId || 'default-standard'); setAssessmentData(data); setManualEntryCompany(company); setViewMode('MANUAL_ENTRY'); setIsLoading(false); };
-  const handleManualEntrySave = async (response: ParticipantResponse) => { if (manualEntryCompany) { await addResponseToCompany(manualEntryCompany.id, response); alert(`Saved response for ${response.firstName} ${response.lastName}`); setManualEntryCompany(null); setViewMode('DASHBOARD'); } };
-  const handleBackToDashboard = () => { setReportCompany(null); setBatchCompanies([]); setMasterReportData(null); setManualEntryCompany(null); setViewMode('DASHBOARD'); };
+  
+  const handleManualEntryStart = async (company: Company) => {
+      setIsLoading(true);
+      const data = await getAssessmentData(company.templateId || 'default-standard');
+      setAssessmentData(data);
+      setManualEntryCompany(company);
+      setViewMode('MANUAL_ENTRY');
+      setIsLoading(false);
+  };
 
-  // ... (Render logic) ...
+  const handleManualEntrySave = async (response: ParticipantResponse) => {
+      if (manualEntryCompany) {
+          await addResponseToCompany(manualEntryCompany.id, response);
+          alert(`Saved response for ${response.firstName} ${response.lastName}`);
+          setManualEntryCompany(null);
+          setViewMode('DASHBOARD');
+      }
+  };
+
+  const handleBackToDashboard = () => {
+    // If user was viewing a public report, reload to go back to start/login
+    if (!user && viewMode === 'SINGLE_REPORT') {
+        window.location.href = '/';
+        return;
+    }
+
+    setReportCompany(null);
+    setBatchCompanies([]);
+    setMasterReportData(null);
+    setManualEntryCompany(null);
+    setViewMode('DASHBOARD');
+  };
 
   if (isLoading) return <div className="min-h-screen bg-slate-900 text-slate-50 flex items-center justify-center"><LoadingSpinner message="Loading..." /></div>;
 

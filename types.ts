@@ -52,8 +52,13 @@ export interface Company {
   assessmentType?: 'standard' | 'strategy';
   createdAt: number;
   responses: ParticipantResponse[];
-  lastActivity?: number; // Timestamp of most recent response
-  viewedAt?: number; // Timestamp when admin last viewed the report
+  lastActivity?: number;
+  viewedAt?: number;
+}
+
+export interface AppSettings {
+    logoUrl?: string;
+    webhookUrl?: string;
 }
 
 export type UserRole = 'SUPER_ADMIN' | 'ADMIN';

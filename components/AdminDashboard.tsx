@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Company, UserAnswers, ParticipantResponse, AssessmentTemplate, Category, User, UserRole } from '../types';
-import { getCompanies, createCompany, saveCompany, deleteCompany, decodeResponse, saveLogo, getLogo, removeLogo, getTemplates, saveTemplate, deleteTemplate, addResponseToCompany, seedTemplates, getUsers, saveUser, deleteUser, updateUserPassword } from '../services/storage'; // Added updateUserPassword
+import { getCompanies, createCompany, saveCompany, deleteCompany, decodeResponse, saveLogo, getLogo, removeLogo, getTemplates, saveTemplate, deleteTemplate, addResponseToCompany, seedTemplates, getUsers, saveUser, deleteUser, updateUserPassword, getSettings, saveSettings } from '../services/storage'; // Updated imports
 import { isConfigured } from '../services/firebaseConfig';
 import { getAssessmentData, generateAssessmentTemplate } from '../services/geminiService';
-import { logout } from '../services/authService';
+import { logout, verifyPassword } from '../services/authService';
 import { sendUserInvite } from '../services/emailService';
-import { Plus, BarChart2, Trash2, Users, Terminal, Share2, X, Search, Calendar, Copy, Check, Layers, Printer, UserPlus, Edit3, Settings, Upload, Image as ImageIcon, AlertTriangle, FileText, LayoutList, Tag, Filter, ArrowUpDown, RotateCcw, RefreshCw, Cloud, HardDrive, Sparkles, Loader2, LogOut, ChevronDown, CheckSquare, Square, Shield, Mail, Lock, Clock, Key } from 'lucide-react';
+import { Plus, BarChart2, Trash2, Users, Terminal, Share2, X, Search, Calendar, Copy, Check, Layers, Printer, UserPlus, Edit3, Settings, Upload, Image as ImageIcon, AlertTriangle, FileText, LayoutList, Tag, Filter, ArrowUpDown, RotateCcw, RefreshCw, Cloud, HardDrive, Sparkles, Loader2, LogOut, ChevronDown, CheckSquare, Square, Shield, Mail, Lock, Key, Clock } from 'lucide-react';
 
 interface AdminDashboardProps {
   user: User;
@@ -17,6 +17,7 @@ interface AdminDashboardProps {
 }
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewReport, onBatchPrint, onMasterReport, onManualEntry }) => {
+  // ... (rest of state setup same as previous) ...
   const [activeTab, setActiveTab] = useState<'companies' | 'templates' | 'users'>('companies');
 
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -24,7 +25,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
-  // Default sort is now "Last Activity"
   const [sortOption, setSortOption] = useState<'activity' | 'date-desc' | 'date-asc' | 'name-asc' | 'name-desc' | 'resp-desc' | 'resp-asc'>('activity');
   const [filterTag, setFilterTag] = useState<string>('');
   const [filterTemplateIds, setFilterTemplateIds] = useState<Set<string>>(new Set());
@@ -49,13 +49,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
   const [newUserPassword, setNewUserPassword] = useState('');
   const [sendInvite, setSendInvite] = useState(true);
   
-  // Change Password State
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPasswordInput, setNewPasswordInput] = useState('');
   const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
 
-  // AI Generation State
   const [showAIModal, setShowAIModal] = useState(false);
   const [aiTopic, setAiTopic] = useState('');
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
@@ -69,6 +67,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
 
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [customLogo, setCustomLogo] = useState<string | null>(null);
+  // New state for webhook
+  const [settings, setSettings] = useState<{ logoUrl?: string, webhookUrl?: string }>({});
 
   const [renamingCompany, setRenamingCompany] = useState<Company | null>(null);
   const [renameValue, setRenameValue] = useState('');
@@ -90,9 +90,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
 
   useEffect(() => {
     refreshData();
-    setCustomLogo(getLogo());
+    loadSettings(); // Changed to use new loader
   }, []);
 
+  const loadSettings = async () => {
+    const s = await getSettings();
+    setSettings(s || {});
+    setCustomLogo(s?.logoUrl || null);
+  };
+
+  const handleSaveWebhook = async () => {
+    await saveSettings({ webhookUrl: settings.webhookUrl });
+    alert("Webhook settings saved!");
+  };
+
+  // ... (UseEffect logic, refreshData, handleReseed, etc. remain same) ...
+  
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (templateFilterRef.current && !templateFilterRef.current.contains(event.target as Node)) {
@@ -118,18 +131,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
           alert("New passwords do not match.");
           return;
       }
-      // In a real backend, we would verify currentPassword on the server.
-      // Here, we check against the loaded user object for security simulation.
-      if (user.password && user.password !== currentPassword) {
+      if (!verifyPassword(user, currentPassword)) {
           alert("Current password incorrect.");
           return;
       }
-
       await updateUserPassword(user.id, newPasswordInput);
       alert("Password updated successfully. Please log in again.");
       onLogout();
   };
-
+  
   const handleReseed = async () => {
       try {
         await seedTemplates();
@@ -140,6 +150,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
       }
   };
 
+  // ... (create, rename, delete logic same as before) ...
   const allUniqueTags = useMemo(() => {
     const tags = new Set<string>();
     companies.forEach(c => {
@@ -191,7 +202,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
       setCompanyToDelete(null);
     }
   };
-
+  
   const handleCreateTemplate = async () => {
     const newTemplate: AssessmentTemplate = {
       id: `custom-${Date.now()}`,
@@ -319,7 +330,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
   const getShareLink = (company: Company) => {
     const baseUrl = window.location.origin + window.location.pathname;
     const cleanPath = baseUrl.split('?')[0];
-    
     let typeParam = 'BLT';
     if (company.templateId === 'default-coaching') {
         typeParam = 'Pre-Planning';
@@ -333,14 +343,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
             else if (name.includes('35')) typeParam = 'BLT-Extended';
         }
     }
-
     const params = new URLSearchParams();
     params.set('company', company.name);
     params.set('type', typeParam);
-
     return `${cleanPath}?${params.toString()}`;
   };
-
+  
+  // ... (toggles/sort logic same as previous) ...
   const toggleSelection = (id: string) => {
       const newSet = new Set(selectedIds);
       if (newSet.has(id)) newSet.delete(id);
@@ -378,7 +387,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
     })
     .sort((a, b) => {
         switch (sortOption) {
-            case 'activity': return (b.lastActivity || 0) - (a.lastActivity || 0);
+            case 'activity': return (b.lastActivity || 0) - (a.lastActivity || 0); // Sort by activity
             case 'date-desc': return b.createdAt - a.createdAt;
             case 'date-asc': return a.createdAt - b.createdAt;
             case 'name-asc': return a.name.localeCompare(b.name);
@@ -411,6 +420,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
       setSortOption('activity');
   };
 
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-12 pb-32">
       {/* Header */}
@@ -426,6 +436,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
           </div>
         </div>
         <div className="flex gap-3">
+            {/* ... Buttons ... */}
             <button
                 onClick={() => {
                     setNewPasswordInput('');
@@ -447,83 +458,34 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
                     <Settings className="w-5 h-5" />
                 </button>
             )}
-            <button 
-                onClick={onLogout}
-                className="px-4 py-3 bg-neutral-800 hover:bg-red-900/30 text-white hover:text-red-400 rounded-xl font-bold flex items-center gap-2 transition-colors shadow-lg border border-brand-grey/10"
-                title="Logout"
-            >
-                <LogOut className="w-5 h-5" />
-            </button>
-            <button 
-                onClick={() => setIsCreating(true)}
-                className="px-6 py-3 bg-brand-orange hover:bg-orange-600 text-white rounded-xl font-bold flex items-center gap-2 transition-colors shadow-lg shadow-orange-900/20"
-            >
-                <Plus className="w-5 h-5" /> New Assessment
-            </button>
+            <button onClick={onLogout} className="px-4 py-3 bg-neutral-800 hover:bg-red-900/30 text-white hover:text-red-400 rounded-xl font-bold flex items-center gap-2 transition-colors shadow-lg border border-brand-grey/10"><LogOut className="w-5 h-5" /></button>
+            <button onClick={() => setIsCreating(true)} className="px-6 py-3 bg-brand-orange hover:bg-orange-600 text-white rounded-xl font-bold flex items-center gap-2 transition-colors shadow-lg shadow-orange-900/20"><Plus className="w-5 h-5" /> New Assessment</button>
         </div>
       </div>
 
+      {/* Tabs */}
       <div className="flex gap-4 border-b border-neutral-800 mb-8">
-        <button
-          onClick={() => setActiveTab('companies')}
-          className={`px-4 py-3 font-bold text-sm border-b-2 transition-colors ${activeTab === 'companies' ? 'border-brand-orange text-brand-orange' : 'border-transparent text-brand-grey hover:text-white'}`}
-        >
-          <div className="flex items-center gap-2"><LayoutList className="w-4 h-4" /> Manage Companies</div>
-        </button>
+        <button onClick={() => setActiveTab('companies')} className={`px-4 py-3 font-bold text-sm border-b-2 transition-colors ${activeTab === 'companies' ? 'border-brand-orange text-brand-orange' : 'border-transparent text-brand-grey hover:text-white'}`}><div className="flex items-center gap-2"><LayoutList className="w-4 h-4" /> Manage Companies</div></button>
         {isSuperAdmin && (
             <>
-                <button
-                onClick={() => setActiveTab('templates')}
-                className={`px-4 py-3 font-bold text-sm border-b-2 transition-colors ${activeTab === 'templates' ? 'border-brand-orange text-brand-orange' : 'border-transparent text-brand-grey hover:text-white'}`}
-                >
-                <div className="flex items-center gap-2"><FileText className="w-4 h-4" /> Manage Templates</div>
-                </button>
-                <button
-                onClick={() => setActiveTab('users')}
-                className={`px-4 py-3 font-bold text-sm border-b-2 transition-colors ${activeTab === 'users' ? 'border-brand-orange text-brand-orange' : 'border-transparent text-brand-grey hover:text-white'}`}
-                >
-                <div className="flex items-center gap-2"><Users className="w-4 h-4" /> Manage Users</div>
-                </button>
+                <button onClick={() => setActiveTab('templates')} className={`px-4 py-3 font-bold text-sm border-b-2 transition-colors ${activeTab === 'templates' ? 'border-brand-orange text-brand-orange' : 'border-transparent text-brand-grey hover:text-white'}`}><div className="flex items-center gap-2"><FileText className="w-4 h-4" /> Manage Templates</div></button>
+                <button onClick={() => setActiveTab('users')} className={`px-4 py-3 font-bold text-sm border-b-2 transition-colors ${activeTab === 'users' ? 'border-brand-orange text-brand-orange' : 'border-transparent text-brand-grey hover:text-white'}`}><div className="flex items-center gap-2"><Users className="w-4 h-4" /> Manage Users</div></button>
             </>
         )}
       </div>
 
-      {/* --- COMPANIES TAB --- */}
       {activeTab === 'companies' && (
         <>
           {isCreating && (
             <div className="mb-8 p-6 bg-neutral-800 rounded-2xl border border-neutral-700 animate-in fade-in slide-in-from-top-4">
               <form onSubmit={handleCreateCompany} className="flex flex-col gap-4">
+                {/* ... Create Form ... */}
                 <div className="grid md:grid-cols-2 gap-4">
-                    <div>
-                    <label className="block text-sm font-medium text-brand-grey mb-2">Company / Team Name</label>
-                    <input 
-                        type="text" value={newCompanyName} onChange={(e) => setNewCompanyName(e.target.value)}
-                        className="w-full px-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none"
-                        placeholder="e.g. Acme Corp Leadership" autoFocus
-                    />
-                    </div>
-                    <div>
-                    <label className="block text-sm font-medium text-brand-grey mb-2">Tags (Optional)</label>
-                    <input 
-                        type="text" value={newCompanyTags} onChange={(e) => setNewCompanyTags(e.target.value)}
-                        className="w-full px-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none"
-                        placeholder="e.g. Q1, Tech Team"
-                    />
-                    </div>
+                    <div><label className="block text-sm font-medium text-brand-grey mb-2">Company / Team Name</label><input type="text" value={newCompanyName} onChange={(e) => setNewCompanyName(e.target.value)} className="w-full px-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none" placeholder="e.g. Acme Corp Leadership" autoFocus/></div>
+                    <div><label className="block text-sm font-medium text-brand-grey mb-2">Tags (Optional)</label><input type="text" value={newCompanyTags} onChange={(e) => setNewCompanyTags(e.target.value)} className="w-full px-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none" placeholder="e.g. Q1, Tech Team"/></div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-brand-grey mb-2">Select Template</label>
-                  <select value={newCompanyTemplateId} onChange={(e) => setNewCompanyTemplateId(e.target.value)} className="w-full px-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none">
-                    {templates.map(t => (
-                      <option key={t.id} value={t.id}>{t.name} ({t.categories.reduce((a,c) => a + c.questions.length, 0)} questions)</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex gap-2 justify-end mt-2">
-                    <button type="button" onClick={() => setIsCreating(false)} className="px-6 py-3 bg-neutral-700 hover:bg-neutral-600 text-white rounded-xl font-bold">Cancel</button>
-                    <button type="submit" disabled={isLoading} className="px-6 py-3 bg-brand-orange hover:bg-orange-600 text-white rounded-xl font-bold">{isLoading ? 'Creating...' : 'Create Assessment'}</button>
-                </div>
+                <div><label className="block text-sm font-medium text-brand-grey mb-2">Select Template</label><select value={newCompanyTemplateId} onChange={(e) => setNewCompanyTemplateId(e.target.value)} className="w-full px-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none">{templates.map(t => (<option key={t.id} value={t.id}>{t.name} ({t.categories.reduce((a,c) => a + c.questions.length, 0)} questions)</option>))}</select></div>
+                <div className="flex gap-2 justify-end mt-2"><button type="button" onClick={() => setIsCreating(false)} className="px-6 py-3 bg-neutral-700 hover:bg-neutral-600 text-white rounded-xl font-bold">Cancel</button><button type="submit" disabled={isLoading} className="px-6 py-3 bg-brand-orange hover:bg-orange-600 text-white rounded-xl font-bold">{isLoading ? 'Creating...' : 'Create Assessment'}</button></div>
               </form>
             </div>
           )}
@@ -534,56 +496,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
                     <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-brand-grey w-5 h-5" />
                     <input type="text" placeholder="Search by name..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-neutral-800 border border-neutral-700 rounded-2xl text-white placeholder-neutral-500 focus:ring-2 focus:ring-brand-orange outline-none transition-all shadow-sm" />
                 </div>
-                <button onClick={handleSelectAll} className="px-6 py-4 bg-neutral-800 border border-neutral-700 text-brand-grey hover:text-white hover:border-neutral-500 rounded-2xl font-bold transition-colors whitespace-nowrap">
-                    {filteredCompanies.length > 0 && filteredCompanies.every(c => selectedIds.has(c.id)) ? 'Unselect All' : 'Select All'}
-                </button>
+                <button onClick={handleSelectAll} className="px-6 py-4 bg-neutral-800 border border-neutral-700 text-brand-grey hover:text-white hover:border-neutral-500 rounded-2xl font-bold transition-colors whitespace-nowrap">{filteredCompanies.length > 0 && filteredCompanies.every(c => selectedIds.has(c.id)) ? 'Unselect All' : 'Select All'}</button>
             </div>
 
             <div className="flex flex-wrap items-center gap-3 p-4 bg-neutral-800/50 border border-neutral-700/50 rounded-2xl">
                 <div className="flex items-center gap-2 text-sm text-brand-grey mr-2"><Filter className="w-4 h-4" /> Filters:</div>
                 
                 <div className="relative" ref={templateFilterRef}>
-                    <button 
-                        onClick={() => setIsTemplateFilterOpen(!isTemplateFilterOpen)} 
-                        className={`flex items-center gap-2 pl-3 pr-3 py-2 border rounded-lg text-sm outline-none transition-colors ${filterTemplateIds.size > 0 ? 'bg-neutral-700 border-neutral-500 text-white' : 'bg-neutral-800 border-neutral-600 text-brand-grey hover:border-neutral-500'}`}
-                    >
-                        <FileText className="w-3.5 h-3.5" />
-                        {filterTemplateIds.size === 0 ? "All Types" : `${filterTemplateIds.size} Types`}
-                        <ChevronDown className="w-3 h-3 ml-1" />
-                    </button>
-                    
-                    {isTemplateFilterOpen && (
-                        <div className="absolute top-full left-0 mt-2 w-64 bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl z-50 p-2 max-h-64 overflow-y-auto">
-                            {templates.map(t => (
-                                <div key={t.id} onClick={() => toggleTemplateFilter(t.id)} className="flex items-center gap-3 p-2 hover:bg-neutral-800 rounded-lg cursor-pointer">
-                                    {filterTemplateIds.has(t.id) ? 
-                                        <CheckSquare className="w-4 h-4 text-brand-orange shrink-0" /> : 
-                                        <Square className="w-4 h-4 text-neutral-600 shrink-0" />
-                                    }
-                                    <span className={`text-sm ${filterTemplateIds.has(t.id) ? 'text-white font-medium' : 'text-neutral-400'}`}>{t.name}</span>
-                                </div>
-                            ))}
-                        </div>
-                    )}
+                    <button onClick={() => setIsTemplateFilterOpen(!isTemplateFilterOpen)} className={`flex items-center gap-2 pl-3 pr-3 py-2 border rounded-lg text-sm outline-none transition-colors ${filterTemplateIds.size > 0 ? 'bg-neutral-700 border-neutral-500 text-white' : 'bg-neutral-800 border-neutral-600 text-brand-grey hover:border-neutral-500'}`}><FileText className="w-3.5 h-3.5" />{filterTemplateIds.size === 0 ? "All Types" : `${filterTemplateIds.size} Types`}<ChevronDown className="w-3 h-3 ml-1" /></button>
+                    {isTemplateFilterOpen && (<div className="absolute top-full left-0 mt-2 w-64 bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl z-50 p-2 max-h-64 overflow-y-auto">{templates.map(t => (<div key={t.id} onClick={() => toggleTemplateFilter(t.id)} className="flex items-center gap-3 p-2 hover:bg-neutral-800 rounded-lg cursor-pointer">{filterTemplateIds.has(t.id) ? <CheckSquare className="w-4 h-4 text-brand-orange shrink-0" /> : <Square className="w-4 h-4 text-neutral-600 shrink-0" />}<span className={`text-sm ${filterTemplateIds.has(t.id) ? 'text-white font-medium' : 'text-neutral-400'}`}>{t.name}</span></div>))}</div>)}
                 </div>
 
                 <div className="relative group">
-                    <select value={filterTag} onChange={(e) => setFilterTag(e.target.value)} className="appearance-none pl-9 pr-8 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-sm text-white focus:ring-1 focus:ring-brand-orange outline-none cursor-pointer hover:border-neutral-500">
-                        <option value="">All Tags</option>
-                        {allUniqueTags.map(tag => (<option key={tag} value={tag}>{tag}</option>))}
-                    </select>
+                    <select value={filterTag} onChange={(e) => setFilterTag(e.target.value)} className="appearance-none pl-9 pr-8 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-sm text-white focus:ring-1 focus:ring-brand-orange outline-none cursor-pointer hover:border-neutral-500"><option value="">All Tags</option>{allUniqueTags.map(tag => (<option key={tag} value={tag}>{tag}</option>))}</select>
                     <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-grey" />
                 </div>
                 <div className="flex items-center gap-2">
-                    <div className="relative">
-                        <input type="date" value={filterStartDate} onChange={(e) => setFilterStartDate(e.target.value)} className="pl-9 pr-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-sm text-white focus:ring-1 focus:ring-brand-orange outline-none hover:border-neutral-500" placeholder="Start" />
-                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-grey" />
-                    </div>
+                    <div className="relative"><input type="date" value={filterStartDate} onChange={(e) => setFilterStartDate(e.target.value)} className="pl-9 pr-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-sm text-white focus:ring-1 focus:ring-brand-orange outline-none hover:border-neutral-500" placeholder="Start" /><Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-grey" /></div>
                     <span className="text-brand-grey">-</span>
-                    <div className="relative">
-                         <input type="date" value={filterEndDate} onChange={(e) => setFilterEndDate(e.target.value)} className="pl-9 pr-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-sm text-white focus:ring-1 focus:ring-brand-orange outline-none hover:border-neutral-500" />
-                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-grey" />
-                    </div>
+                    <div className="relative"><input type="date" value={filterEndDate} onChange={(e) => setFilterEndDate(e.target.value)} className="pl-9 pr-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-sm text-white focus:ring-1 focus:ring-brand-orange outline-none hover:border-neutral-500" /><Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-grey" /></div>
                 </div>
                 <div className="flex-1"></div>
                 <div className="flex items-center gap-2 text-sm text-brand-grey border-l border-neutral-700 pl-4">
@@ -598,9 +529,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
                         <option value="resp-asc">Fewest Responses</option>
                     </select>
                 </div>
-                {(filterTag || filterStartDate || filterEndDate || searchTerm || sortOption !== 'date-desc' || filterTemplateIds.size > 0) && (
-                    <button onClick={resetFilters} className="p-2 text-brand-grey hover:text-white hover:bg-neutral-700 rounded-lg transition-colors" title="Reset Filters"><RotateCcw className="w-4 h-4" /></button>
-                )}
+                {(filterTag || filterStartDate || filterEndDate || searchTerm || sortOption !== 'date-desc' || filterTemplateIds.size > 0) && (<button onClick={resetFilters} className="p-2 text-brand-grey hover:text-white hover:bg-neutral-700 rounded-lg transition-colors" title="Reset Filters"><RotateCcw className="w-4 h-4" /></button>)}
             </div>
           </div>
 
@@ -612,7 +541,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
             <div className="grid gap-4">
               {filteredCompanies.map(company => {
                 const template = templates.find(t => t.id === company.templateId);
-                // Determine if unread: Last Activity is NEWER than Last Viewed
+                // RED DOT LOGIC
                 const isUnread = company.lastActivity && (!company.viewedAt || company.lastActivity > company.viewedAt);
 
                 return (
@@ -628,29 +557,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
                           <div className="flex items-center gap-2 px-3 py-1 bg-neutral-700/50 rounded-full border border-neutral-600 text-xs font-medium text-brand-grey w-fit">
                               <Calendar className="w-3 h-3" /> {new Date(company.createdAt).toLocaleDateString()}
                           </div>
-                          {template && (
-                            <span className="px-2 py-1 rounded text-[10px] uppercase font-bold bg-brand-black text-brand-grey border border-neutral-700">{template.name}</span>
-                          )}
-                          {company.lastActivity && (
-                             <span className="px-2 py-1 rounded text-[10px] uppercase font-bold bg-neutral-800 text-neutral-400 border border-neutral-700 flex items-center gap-1">
-                                <Clock className="w-3 h-3" /> Active: {new Date(company.lastActivity).toLocaleDateString()}
-                             </span>
-                          )}
+                          {template && (<span className="px-2 py-1 rounded text-[10px] uppercase font-bold bg-brand-black text-brand-grey border border-neutral-700">{template.name}</span>)}
+                          {company.lastActivity && (<span className="px-2 py-1 rounded text-[10px] uppercase font-bold bg-neutral-800 text-neutral-400 border border-neutral-700 flex items-center gap-1"><Clock className="w-3 h-3" /> Active: {new Date(company.lastActivity).toLocaleDateString()}</span>)}
                         </div>
                         
                         {company.tags && company.tags.length > 0 && (
                             <div className="flex flex-wrap gap-2 mb-3">
-                                {company.tags.map((tag, idx) => (
-                                    <span key={idx} className="flex items-center gap-1 px-2 py-0.5 bg-neutral-700 text-brand-grey border border-neutral-600 rounded text-xs font-medium"><Tag className="w-3 h-3" /> {tag}</span>
-                                ))}
+                                {company.tags.map((tag, idx) => (<span key={idx} className="flex items-center gap-1 px-2 py-0.5 bg-neutral-700 text-brand-grey border border-neutral-600 rounded text-xs font-medium"><Tag className="w-3 h-3" /> {tag}</span>))}
                             </div>
                         )}
                         
                         <div className="flex flex-wrap items-center gap-4 text-sm text-brand-grey">
-                            <button onClick={() => { setManagingCompany(company); setShowManageModal(true); }} className={`flex items-center gap-2 hover:text-white transition-colors ${company.responses.length > 0 ? "text-brand-orange font-bold" : ""}`}>
-                                <Users className="w-4 h-4" />
-                                <span className="underline decoration-dotted">{company.responses.length} Response{company.responses.length !== 1 ? 's' : ''}</span>
-                            </button>
+                            <button onClick={() => { setManagingCompany(company); setShowManageModal(true); }} className={`flex items-center gap-2 hover:text-white transition-colors ${company.responses.length > 0 ? "text-brand-orange font-bold" : ""}`}><Users className="w-4 h-4" /><span className="underline decoration-dotted">{company.responses.length} Response{company.responses.length !== 1 ? 's' : ''}</span></button>
                             <div className="w-1 h-1 bg-neutral-600 rounded-full"></div>
                             <button onClick={() => { setShareLink(getShareLink(company)); setShowShareModal(true); }} className="flex items-center gap-2 text-brand-grey hover:text-white transition-colors"><Share2 className="w-4 h-4" /> Get Link 🔗</button>
                         </div>
@@ -695,6 +613,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
       {/* --- TEMPLATES TAB --- */}
       {activeTab === 'templates' && isSuperAdmin && (
         <div>
+            {/* ... Templates UI ... */}
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
              <button onClick={() => setShowAIModal(true)} className="h-full min-h-[200px] border-2 border-dashed border-brand-orange/40 bg-brand-orange/5 hover:bg-brand-orange/10 rounded-2xl flex flex-col items-center justify-center text-brand-orange transition-all group relative overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
@@ -727,6 +646,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
       {/* --- USERS TAB --- */}
       {activeTab === 'users' && isSuperAdmin && (
           <div>
+              {/* ... Users UI ... */}
               <div className="flex justify-between items-center mb-6">
                   <h2 className="text-xl font-bold text-white">System Users</h2>
                   <button onClick={() => {
@@ -776,7 +696,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
       )}
 
       {/* --- MODALS --- */}
-
+      
       {/* Change Password Modal */}
       {showChangePasswordModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-black/90 backdrop-blur-sm">
@@ -805,7 +725,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
           </div>
         </div>
       )}
-      
+
       {/* AI Generation Modal */}
       {showAIModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-black/90 backdrop-blur-sm animate-in fade-in">
@@ -973,6 +893,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
                        }
                     }}/>
                  </label>
+              </div>
+
+              <div className="mb-6 pt-4 border-t border-neutral-800">
+                <h4 className="text-white font-bold mb-2">Automation Webhook</h4>
+                <p className="text-brand-grey text-xs mb-2">Enter a Zapier or Make.com Webhook URL to trigger emails and Mailchimp updates automatically.</p>
+                <div className="flex gap-2">
+                    <input 
+                        type="text" 
+                        value={settings.webhookUrl || ''} 
+                        onChange={e => setSettings({...settings, webhookUrl: e.target.value})} 
+                        placeholder="https://hooks.zapier.com/..."
+                        className="flex-1 px-3 py-2 bg-brand-black border border-neutral-600 rounded-lg text-white text-sm focus:ring-1 focus:ring-brand-orange outline-none"
+                    />
+                    <button onClick={handleSaveWebhook} className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg font-bold text-sm">Save</button>
+                </div>
               </div>
 
               <div className="mb-4 pt-4 border-t border-neutral-800">

@@ -1,4 +1,4 @@
-import { Company, ParticipantResponse, AssessmentTemplate, User } from '../types';
+import { Company, ParticipantResponse, AssessmentTemplate, User, AppSettings } from '../types';
 import { db, isConfigured } from './firebaseConfig';
 import { 
   collection, 
@@ -14,11 +14,14 @@ import {
 const COMPANIES_COL = 'companies';
 const TEMPLATES_COL = 'templates';
 const USERS_COL = 'users';
+const SETTINGS_COL = 'settings';
+const SETTINGS_DOC_ID = 'global_settings';
 
 // --- LocalStorage Keys (Fallback) ---
 const LOCAL_COMPANIES_KEY = 'breakthrough_companies';
 const LOCAL_TEMPLATES_KEY = 'breakthrough_templates';
 const LOCAL_USERS_KEY = 'breakthrough_users';
+const LOCAL_SETTINGS_KEY = 'breakthrough_settings';
 
 // --- Default Users (Seeding) ---
 const DEFAULT_ADMIN: User = {
@@ -145,6 +148,43 @@ const getLocalData = <T>(key: string): T[] => {
 
 const setLocalData = <T>(key: string, data: T[]) => {
     localStorage.setItem(key, JSON.stringify(data));
+};
+
+// --- Settings Management ---
+export const getSettings = async (): Promise<AppSettings> => {
+    if (isConfigured() && db) {
+        try {
+            const ref = doc(db, SETTINGS_COL, SETTINGS_DOC_ID);
+            const snap = await getDoc(ref);
+            if (snap.exists()) return snap.data() as AppSettings;
+        } catch (e) {}
+    }
+    const local = localStorage.getItem(LOCAL_SETTINGS_KEY);
+    return local ? JSON.parse(local) : {};
+};
+
+export const saveSettings = async (settings: AppSettings): Promise<void> => {
+    if (isConfigured() && db) {
+        await setDoc(doc(db, SETTINGS_COL, SETTINGS_DOC_ID), settings, { merge: true });
+    }
+    // Always save local for backup/speed
+    const current = await getSettings(); // Retrieve current to merge
+    const newSettings = { ...current, ...settings };
+    localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(newSettings));
+};
+
+// Re-export logo functions to use the new Settings system
+export const saveLogo = async (base64: string): Promise<void> => {
+    await saveSettings({ logoUrl: base64 });
+};
+
+export const getLogo = async (): Promise<string | null> => {
+    const s = await getSettings();
+    return s.logoUrl || null;
+};
+
+export const removeLogo = async (): Promise<void> => {
+    await saveSettings({ logoUrl: '' });
 };
 
 // --- Template Management ---
@@ -406,19 +446,5 @@ export const decodeResponse = (token: string): ParticipantResponse | null => {
   }
 };
 
-const LOGO_KEY = 'breakthrough_custom_logo';
-export const saveLogo = (base64: string): void => {
-  try {
-    localStorage.setItem(LOGO_KEY, base64);
-  } catch (e) {
-    alert("Logo image is too large.");
-  }
-};
-
-export const getLogo = (): string | null => {
-  return localStorage.getItem(LOGO_KEY);
-};
-
-export const removeLogo = (): void => {
-  localStorage.removeItem(LOGO_KEY);
-};
+// Logo functions use Settings now
+// Keeping these wrappers for backward compat

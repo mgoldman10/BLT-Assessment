@@ -443,6 +443,3 @@ export const decodeResponse = (token: string): ParticipantResponse | null => {
     return null;
   }
 };
-
-const LOGO_KEY = 'breakthrough_custom_logo';
-// Removed local saveLogo in favor of settings-based one at top of file

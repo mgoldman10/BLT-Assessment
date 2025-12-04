@@ -71,7 +71,7 @@ const SEED_TEMPLATES: AssessmentTemplate[] = [
         questions: c.questions.map((q, j) => ({ id: `q-${i}-${j}`, text: q, type: 'rating' as const }))
     }))
   },
-  // NEW: Pre-Planning Survey (Formerly Coaching Prep)
+  // NEW: Pre-Planning Survey
   {
     id: 'default-coaching',
     name: 'Pre-Planning Survey',
@@ -316,7 +316,6 @@ export const saveUser = async (user: User): Promise<void> => {
     setLocalData(LOCAL_USERS_KEY, local);
 };
 
-// New: Update specific user password
 export const updateUserPassword = async (userId: string, newPassword: string): Promise<void> => {
     if (isConfigured() && db) {
         const ref = doc(db, USERS_COL, userId);
@@ -444,3 +443,6 @@ export const decodeResponse = (token: string): ParticipantResponse | null => {
     return null;
   }
 };
+
+const LOGO_KEY = 'breakthrough_custom_logo';
+// Removed local saveLogo in favor of settings-based one at top of file

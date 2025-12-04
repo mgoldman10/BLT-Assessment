@@ -50,39 +50,40 @@ const App: React.FC = () => {
 
     const companyName = getParam('company');
     const mode = getParam('mode');
-    const templateId = getParam('template') || 'default-strategy';
+    const templateIdParam = getParam('template') || 'default-strategy';
+    const typeParam = getParam('type'); // Used for fallback
 
     const loadData = async () => {
+      // Check for Public/Embed Mode
       if (mode === 'public') {
-          const data = await getAssessmentData(templateId);
+          const data = await getAssessmentData(templateIdParam);
           setAssessmentData(data);
           setParticipantCompany(''); 
           setParticipantCompanyId('PUBLIC_NEW'); 
           setViewMode('PARTICIPANT');
-      } 
-      else if (mode === 'view_result' && companyName) {
-          const companies = await getCompanies();
-          const targetCompany = companies.find(c => c.name === companyName);
-          if (targetCompany) {
-              const data = await getAssessmentData(targetCompany.templateId || 'default-standard');
-              setAssessmentData(data);
-              setReportCompany(targetCompany);
-              setViewMode('SINGLE_REPORT');
-          } else {
-              setViewMode('LOGIN'); 
-          }
       }
+      // Check for Invite/Participant Mode
       else if (companyName) {
         const companies = await getCompanies();
         const targetCompany = companies.find(c => c.name === companyName);
         
         if (targetCompany) {
-             const data = await getAssessmentData(targetCompany.templateId || 'default-standard');
+             // Determine template ID to use
+             let finalTemplateId = targetCompany.templateId || 'default-standard';
+             
+             // Fallback Logic: If templateId seems wrong/missing, check URL type param
+             if (!targetCompany.templateId && typeParam) {
+                 if (typeParam === 'Pre-Planning') finalTemplateId = 'default-coaching';
+                 else if (typeParam === 'BLT-Extended') finalTemplateId = 'default-strategy';
+             }
+
+             const data = await getAssessmentData(finalTemplateId);
              setAssessmentData(data);
              setParticipantCompany(companyName);
              setParticipantCompanyId(targetCompany.id); 
              setViewMode('PARTICIPANT');
         } else {
+             // Company not found in DB, show default standard
              const data = await getAssessmentData('default-standard');
              setAssessmentData(data);
              setParticipantCompany(companyName);
@@ -129,7 +130,6 @@ const App: React.FC = () => {
     setViewMode('BATCH_PRINT');
   };
 
-  // UPDATED: Aggregates responses from multiple companies
   const handleMasterReport = async (companies: Company[]) => {
     setIsLoading(true);
     const primaryTemplateId = companies[0]?.templateId || 'default-standard';
@@ -143,7 +143,7 @@ const App: React.FC = () => {
 
     const masterCompany: Company = {
         id: 'master-report',
-        name: `Group Assessment Report (${companies.length} Teams)`,
+        name: `Aggregate Report (${companies.length} Teams)`,
         templateId: primaryTemplateId,
         createdAt: Date.now(),
         responses: allResponses
@@ -173,6 +173,7 @@ const App: React.FC = () => {
   };
 
   const handleBackToDashboard = () => {
+    // If user was viewing a public report, reload to go back to start/login
     if (!user && viewMode === 'SINGLE_REPORT') {
         window.location.href = '/';
         return;

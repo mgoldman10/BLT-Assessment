@@ -111,8 +111,10 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyI
   // Calculate start index for continuous numbering (1-30)
   const getStartingIndex = (category: Category): number => {
       if (!assessmentData || !assessmentData.categories) return 0;
+      
       const catIndex = assessmentData.categories.findIndex(c => c.id === category.id);
       if (catIndex === -1) return 0;
+      
       let count = 0;
       for (let i = 0; i < catIndex; i++) {
           count += assessmentData.categories[i].questions.length;
@@ -129,72 +131,14 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyI
   const categoriesStatus = assessmentData.categories.map(cat => {
       const answeredInCat = cat.questions.filter(q => userAnswers[q.id] !== undefined).length;
       const totalInCat = cat.questions.length;
-      return { id: cat.id, name: cat.name, isComplete: answeredInCat === totalInCat, isStarted: answeredInCat > 0 && answeredInCat < totalInCat, percentage: totalInCat > 0 ? (answeredInCat / totalInCat) * 100 : 0 };
+      return {
+          id: cat.id,
+          name: cat.name,
+          isComplete: answeredInCat === totalInCat,
+          isStarted: answeredInCat > 0 && answeredInCat < totalInCat,
+          percentage: totalInCat > 0 ? (answeredInCat / totalInCat) * 100 : 0
+      };
   });
-
-  // Determine dynamic title based on topic
-  const assessmentTitle = assessmentData.topic.includes('Pre-Planning') 
-    ? 'Pre-Planning Survey' 
-    : 'Breakthrough Leadership Team Assessment';
-
-  if (step === 'WELCOME') {
-      return (
-        <div className="min-h-screen bg-brand-black flex items-center justify-center p-4">
-            <div className="bg-neutral-900 max-w-md w-full p-8 rounded-3xl border border-neutral-700 shadow-2xl">
-                <div className="text-center mb-8">
-                    <h1 className="text-2xl font-bold text-white mb-2">Welcome</h1>
-                    <p className="text-brand-grey">
-                        You are taking the <span className="text-white font-bold">{assessmentTitle}</span> for <br/>
-                        <span className="text-brand-orange font-bold">{isPublicMode ? "Your Team" : companyName}</span>
-                    </p>
-                </div>
-
-                <form onSubmit={handleStart}>
-                    <div className="space-y-4 mb-8">
-                        {isPublicMode && (
-                            <div>
-                                <label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Company / Team Name</label>
-                                <div className="relative"><Building className="absolute left-3 top-3 w-5 h-5 text-neutral-600" /><input type="text" required value={publicCompanyName} onChange={e => setPublicCompanyName(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none" placeholder="Acme Inc." /></div>
-                            </div>
-                        )}
-                        <div><label className="block text-xs font-bold text-neutral-500 uppercase mb-1">First Name</label><div className="relative"><User className="absolute left-3 top-3 w-5 h-5 text-neutral-600" /><input type="text" required value={firstName} onChange={e => setFirstName(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none" placeholder="Jane" /></div></div>
-                        <div><label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Last Name</label><div className="relative"><User className="absolute left-3 top-3 w-5 h-5 text-neutral-600" /><input type="text" required value={lastName} onChange={e => setLastName(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none" placeholder="Doe" /></div></div>
-                        <div><label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Email Address</label><div className="relative"><Mail className="absolute left-3 top-3 w-5 h-5 text-neutral-600" /><input type="email" required value={email} onChange={e => setEmail(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none" placeholder="jane@company.com" /></div></div>
-                    </div>
-                    <button type="submit" className="w-full py-4 bg-brand-orange hover:bg-orange-600 text-white font-bold rounded-xl transition-all shadow-lg flex items-center justify-center gap-2">Start Assessment <ArrowRight className="w-4 h-4" /></button>
-                </form>
-            </div>
-        </div>
-      );
-  }
-
-  if (step === 'FINISHED') {
-    return (
-        <div className="min-h-screen bg-brand-black flex items-center justify-center p-4">
-            <div className="bg-neutral-900 max-w-2xl w-full p-8 md:p-12 rounded-3xl border border-neutral-700 text-center shadow-2xl">
-                <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6 text-green-400">
-                    <Check className="w-10 h-10" />
-                </div>
-                <h1 className="text-3xl font-bold text-white mb-4">Assessment Complete</h1>
-                <p className="text-brand-grey mb-8 text-lg">
-                    Thank you, <span className="text-white font-bold">{firstName}</span>. Your responses for <span className="text-brand-orange font-bold">{companyName || publicCompanyName}</span> have been recorded.
-                </p>
-                
-                {/* Show View Results Button if Link Generated (Only for Public Mode usually, but safe to show always if link exists) */}
-                {resultViewLink && isPublicMode && (
-                    <a 
-                        href={resultViewLink} 
-                        className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-lg transition-all mb-4"
-                    >
-                        <Eye className="w-5 h-5" /> View My Results
-                    </a>
-                )}
-                
-                <div className="text-sm text-neutral-500 mt-4">You may close this window.</div>
-            </div>
-        </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-brand-black">
@@ -252,6 +196,61 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyI
             </div>
         </div>
       </div>
+
+      {step === 'WELCOME' && (
+        <div className="fixed inset-0 z-50 bg-brand-black flex items-center justify-center p-4">
+            <div className="bg-neutral-900 max-w-md w-full p-8 rounded-3xl border border-neutral-700 shadow-2xl">
+                <div className="text-center mb-8">
+                    <h1 className="text-2xl font-bold text-white mb-2">Welcome</h1>
+                    <p className="text-brand-grey">
+                        You are taking the <span className="text-white font-bold">{assessmentData.topic}</span> for <br/>
+                        <span className="text-brand-orange font-bold">{isPublicMode ? "Your Team" : companyName}</span>
+                    </p>
+                </div>
+
+                <form onSubmit={handleStart}>
+                    <div className="space-y-4 mb-8">
+                        {isPublicMode && (
+                            <div>
+                                <label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Company / Team Name</label>
+                                <div className="relative"><Building className="absolute left-3 top-3 w-5 h-5 text-neutral-600" /><input type="text" required value={publicCompanyName} onChange={e => setPublicCompanyName(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none" placeholder="Acme Inc." /></div>
+                            </div>
+                        )}
+                        <div><label className="block text-xs font-bold text-neutral-500 uppercase mb-1">First Name</label><div className="relative"><User className="absolute left-3 top-3 w-5 h-5 text-neutral-600" /><input type="text" required value={firstName} onChange={e => setFirstName(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none" placeholder="Jane" /></div></div>
+                        <div><label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Last Name</label><div className="relative"><User className="absolute left-3 top-3 w-5 h-5 text-neutral-600" /><input type="text" required value={lastName} onChange={e => setLastName(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none" placeholder="Doe" /></div></div>
+                        <div><label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Email Address</label><div className="relative"><Mail className="absolute left-3 top-3 w-5 h-5 text-neutral-600" /><input type="email" required value={email} onChange={e => setEmail(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none" placeholder="jane@company.com" /></div></div>
+                    </div>
+                    <button type="submit" className="w-full py-4 bg-brand-orange hover:bg-orange-600 text-white font-bold rounded-xl transition-all shadow-lg flex items-center justify-center gap-2">Start Assessment <ArrowRight className="w-4 h-4" /></button>
+                </form>
+            </div>
+        </div>
+      )}
+
+      {step === 'FINISHED' && (
+        <div className="fixed inset-0 z-50 bg-brand-black flex items-center justify-center p-4">
+            <div className="bg-neutral-900 max-w-2xl w-full p-8 md:p-12 rounded-3xl border border-neutral-700 text-center shadow-2xl">
+                <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6 text-green-400">
+                    <Check className="w-10 h-10" />
+                </div>
+                <h1 className="text-3xl font-bold text-white mb-4">Assessment Complete</h1>
+                <p className="text-brand-grey mb-8 text-lg">
+                    Thank you, <span className="text-white font-bold">{firstName}</span>. Your responses for <span className="text-brand-orange font-bold">{companyName || publicCompanyName}</span> have been recorded.
+                </p>
+                
+                {/* Show View Results Button if Link Generated */}
+                {resultViewLink && isPublicMode && (
+                    <a 
+                        href={resultViewLink} 
+                        className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-lg transition-all mb-4"
+                    >
+                        <Eye className="w-5 h-5" /> View My Results
+                    </a>
+                )}
+                
+                <div className="text-sm text-neutral-500 mt-4">You may close this window.</div>
+            </div>
+        </div>
+      )}
 
       <GameBoard 
         assessmentData={assessmentData}

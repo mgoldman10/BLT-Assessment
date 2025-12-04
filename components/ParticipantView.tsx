@@ -81,29 +81,26 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyI
         const reportLink = `${window.location.origin}/?mode=view_result&company=${encodeURIComponent(finalCompanyName)}`;
         setResultViewLink(reportLink);
 
-        // ONLY Trigger Webhook if Public Mode (From Website)
-        if (isPublicMode) {
-            try {
-                const settings = await getSettings();
-                if (settings.webhookUrl && finalCompanyId) {
-                    
-                    let typeParam = 'BLT';
-                    if (assessmentData.topic.includes('Pre-Planning')) typeParam = 'Pre-Planning';
-                    else if (assessmentData.topic.includes('35')) typeParam = 'BLT-Extended';
-                    
-                    const shareLink = `${window.location.origin}/?company=${encodeURIComponent(finalCompanyName)}&type=${typeParam}`;
+        try {
+            const settings = await getSettings();
+            if (settings.webhookUrl && finalCompanyId) {
+                
+                let typeParam = 'BLT';
+                if (assessmentData.topic.includes('Pre-Planning')) typeParam = 'Pre-Planning';
+                else if (assessmentData.topic.includes('35')) typeParam = 'BLT-Extended';
+                
+                const shareLink = `${window.location.origin}/?company=${encodeURIComponent(finalCompanyName)}&type=${typeParam}`;
 
-                    await triggerAutomationWebhook(settings.webhookUrl, {
-                        participant: response,
-                        companyName: finalCompanyName,
-                        reportLink: reportLink,
-                        assessmentName: assessmentData.topic,
-                        shareLink: shareLink
-                    });
-                }
-            } catch (e) {
-                console.error("Webhook trigger error", e);
+                await triggerAutomationWebhook(settings.webhookUrl, {
+                    participant: response,
+                    companyName: finalCompanyName,
+                    reportLink: reportLink,
+                    assessmentName: assessmentData.topic,
+                    shareLink: shareLink
+                });
             }
+        } catch (e) {
+            console.error("Webhook trigger error", e);
         }
 
         setStep('FINISHED');
@@ -114,10 +111,8 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyI
   // Calculate start index for continuous numbering (1-30)
   const getStartingIndex = (category: Category): number => {
       if (!assessmentData || !assessmentData.categories) return 0;
-      
       const catIndex = assessmentData.categories.findIndex(c => c.id === category.id);
       if (catIndex === -1) return 0;
-      
       let count = 0;
       for (let i = 0; i < catIndex; i++) {
           count += assessmentData.categories[i].questions.length;
@@ -134,14 +129,13 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyI
   const categoriesStatus = assessmentData.categories.map(cat => {
       const answeredInCat = cat.questions.filter(q => userAnswers[q.id] !== undefined).length;
       const totalInCat = cat.questions.length;
-      return {
-          id: cat.id,
-          name: cat.name,
-          isComplete: answeredInCat === totalInCat,
-          isStarted: answeredInCat > 0 && answeredInCat < totalInCat,
-          percentage: totalInCat > 0 ? (answeredInCat / totalInCat) * 100 : 0
-      };
+      return { id: cat.id, name: cat.name, isComplete: answeredInCat === totalInCat, isStarted: answeredInCat > 0 && answeredInCat < totalInCat, percentage: totalInCat > 0 ? (answeredInCat / totalInCat) * 100 : 0 };
   });
+
+  // Determine dynamic title based on topic
+  const assessmentTitle = assessmentData.topic.includes('Pre-Planning') 
+    ? 'Pre-Planning Survey' 
+    : 'Breakthrough Leadership Team Assessment';
 
   if (step === 'WELCOME') {
       return (
@@ -150,9 +144,8 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyI
                 <div className="text-center mb-8">
                     <h1 className="text-2xl font-bold text-white mb-2">Welcome</h1>
                     <p className="text-brand-grey">
-                        {isPublicMode ? "Start your free team assessment." : (
-                            <>You are taking the assessment for <br/><span className="text-brand-orange font-bold">{companyName}</span></>
-                        )}
+                        You are taking the <span className="text-white font-bold">{assessmentTitle}</span> for <br/>
+                        <span className="text-brand-orange font-bold">{isPublicMode ? "Your Team" : companyName}</span>
                     </p>
                 </div>
 
@@ -184,7 +177,7 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyI
                 </div>
                 <h1 className="text-3xl font-bold text-white mb-4">Assessment Complete</h1>
                 <p className="text-brand-grey mb-8 text-lg">
-                    Thank you, <span className="text-white font-bold">{firstName}</span>. Your responses have been recorded.
+                    Thank you, <span className="text-white font-bold">{firstName}</span>. Your responses for <span className="text-brand-orange font-bold">{companyName || publicCompanyName}</span> have been recorded.
                 </p>
                 
                 {/* Show View Results Button if Link Generated (Only for Public Mode usually, but safe to show always if link exists) */}

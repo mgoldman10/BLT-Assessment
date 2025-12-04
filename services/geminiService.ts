@@ -10,13 +10,13 @@ export const getAssessmentData = async (templateId: string): Promise<AssessmentD
   if (!template) {
     const standard = await getTemplate('default-standard');
     if (standard) {
-      return { topic: "Breakthrough Leadership Team Assessment", categories: standard.categories };
+      return { topic: standard.name, categories: standard.categories };
     }
     throw new Error("Assessment Template not found.");
   }
 
   return {
-    topic: "Breakthrough Leadership Team Assessment",
+    topic: template.name, // FIXED: Uses the actual template name (e.g. "Pre-Planning Survey")
     categories: template.categories
   };
 };
@@ -88,7 +88,7 @@ export const generateAssessmentTemplate = async (topic: string): Promise<Omit<As
 // New function for Executive Summary
 export interface AIAnalysisInput {
     companyName: string;
-    respondentCount: number; 
+    respondentCount: number;
     pillarScores: { name: string; score: number }[];
     topStrengths: { text: string; label: string }[];
     criticalGaps: { text: string; label: string }[];
@@ -100,6 +100,7 @@ export const generateExecutiveSummary = async (data: AIAnalysisInput): Promise<s
 
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
+    // Note: Scores are intentionally excluded from the data string below so the AI relies on context/labels
     const prompt = `
     Analyze the leadership assessment data for "${data.companyName}".
     Total Respondents: ${data.respondentCount}.

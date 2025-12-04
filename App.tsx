@@ -53,15 +53,13 @@ const App: React.FC = () => {
     const templateId = getParam('template') || 'default-strategy';
 
     const loadData = async () => {
-      // Check for Public/Embed Mode
       if (mode === 'public') {
           const data = await getAssessmentData(templateId);
           setAssessmentData(data);
           setParticipantCompany(''); 
           setParticipantCompanyId('PUBLIC_NEW'); 
           setViewMode('PARTICIPANT');
-      }
-      // NEW: Check for Public Result View Mode (from Email Link)
+      } 
       else if (mode === 'view_result' && companyName) {
           const companies = await getCompanies();
           const targetCompany = companies.find(c => c.name === companyName);
@@ -71,11 +69,9 @@ const App: React.FC = () => {
               setReportCompany(targetCompany);
               setViewMode('SINGLE_REPORT');
           } else {
-              // Handle invalid link (company not found)
               setViewMode('LOGIN'); 
           }
       }
-      // Check for Invite/Participant Mode
       else if (companyName) {
         const companies = await getCompanies();
         const targetCompany = companies.find(c => c.name === companyName);
@@ -133,6 +129,7 @@ const App: React.FC = () => {
     setViewMode('BATCH_PRINT');
   };
 
+  // UPDATED: Aggregates responses from multiple companies
   const handleMasterReport = async (companies: Company[]) => {
     setIsLoading(true);
     const primaryTemplateId = companies[0]?.templateId || 'default-standard';
@@ -146,7 +143,7 @@ const App: React.FC = () => {
 
     const masterCompany: Company = {
         id: 'master-report',
-        name: `Aggregate Report (${companies.length} Companies)`,
+        name: `Group Assessment Report (${companies.length} Teams)`,
         templateId: primaryTemplateId,
         createdAt: Date.now(),
         responses: allResponses
@@ -176,7 +173,6 @@ const App: React.FC = () => {
   };
 
   const handleBackToDashboard = () => {
-    // If user was viewing a public report, reload to go back to start/login
     if (!user && viewMode === 'SINGLE_REPORT') {
         window.location.href = '/';
         return;

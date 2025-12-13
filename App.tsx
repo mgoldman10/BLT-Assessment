@@ -16,11 +16,18 @@ type ViewMode = 'LOGIN' | 'DASHBOARD' | 'PARTICIPANT' | 'SINGLE_REPORT' | 'BATCH
 const mapTypeToTemplateId = (type?: string) => {
   if (!type) return undefined;
   const t = type.toLowerCase();
-  if (t.includes('pre-planning') || t.includes('pre-planning') || t.includes('preplanning') || t.includes('pre-plann')) return 'default-coaching';
-  if (t.includes('extended') || t.includes('35') || t.includes('extended')) return 'default-strategy';
+  if (t.includes('pre-planning') || t.includes('preplanning') || t.includes('pre-plann')) return 'default-coaching';
+  if (t.includes('extended') || t.includes('35')) return 'default-strategy';
   // default mapping fallback
   if (t.includes('blt')) return 'default-standard';
   return undefined;
+};
+
+const mapTemplateIdToTypeParam = (tid?: string) => {
+  if (!tid) return 'BLT';
+  if (tid === 'default-coaching') return 'Pre-Planning';
+  if (tid === 'default-strategy') return 'BLT-Extended';
+  return 'BLT';
 };
 
 const normalizeNameParam = (s: string | null) => {
@@ -48,7 +55,35 @@ const App: React.FC = () => {
 
   const [assessmentData, setAssessmentData] = useState<AssessmentData | null>(null);
 
+  // Load initial user & maybe route params
   useEffect(() => {
+    // Robust handling for /r/:token short links:
+    // If the path is /r/:token, resolve token -> company and redirect to query-style URL
+    const pathMatch = window.location.pathname.match(/^\/r\/([^\/?#]+)/);
+    if (pathMatch) {
+      const token = decodeURIComponent(pathMatch[1]);
+      (async () => {
+        try {
+          // Try to find the company by publicId first, then fallback to id
+          let company = await getCompanyByPublicId(token);
+          if (!company) company = await getCompanyById(token);
+          if (company) {
+            const typeParam = mapTemplateIdToTypeParam(company.templateId);
+            const url = `/?company=${encodeURIComponent(company.name)}&type=${encodeURIComponent(typeParam)}`;
+            // Replace current location with the query-style URL (causes a single navigation)
+            window.location.replace(url);
+            return;
+          }
+          // If company not found, continue to parse params normally and let UI handle "not found".
+        } catch (err) {
+          console.error('Error resolving share token', token, err);
+        }
+      })();
+      // stop further processing in this effect for now (we're navigating away if matched)
+      return;
+    }
+
+    // existing param parsing & initialization
     const getParam = (key: string) => {
       const urlParams = new URLSearchParams(window.location.search);
       const param = urlParams.get(key);
@@ -64,227 +99,202 @@ const App: React.FC = () => {
       return null;
     };
 
-    const companyNameRaw = getParam('company');
-    const companyName = normalizeNameParam(companyNameRaw);
-    const mode = getParam('mode');
-    const templateIdParam = getParam('template') || 'default-strategy';
-    const typeParam = getParam('type'); // Used for disambiguation/fallback
-    const viewResultMode = getParam('mode') === 'view_result' || getParam('mode') === 'view';
-
-    const loadData = async () => {
-      // 1) Path-based public link: /r/:publicId (highest priority)
+    const init = async () => {
+      setIsLoading(true);
       try {
-        const pathname = window.location.pathname || '';
-        const normalized = pathname.replace(/\/+$/, '');
-        if (normalized.startsWith('/r/')) {
-          const token = decodeURIComponent(normalized.split('/r/')[1] || '');
-          if (token) {
-            // Try lookup by publicId first (existing behavior)
-            let company = await getCompanyByPublicId(token);
-
-            // Fallback: if no company found by publicId, try resolving by internal company id
-            // This makes links that accidentally used internal ids work and is a defensive safety net.
-            if (!company) {
-              try {
-                company = await getCompanyById(token);
-                if (company) {
-                  console.warn(`/r/:token fallback used getCompanyById for token: ${token}`);
-                }
-              } catch (e) {
-                console.warn('Fallback getCompanyById failed for token:', token, e);
-                company = undefined;
-              }
-            }
-
-            if (company) {
-              const data = await getAssessmentData(company.templateId || 'default-standard');
-              setAssessmentData(data);
-              setParticipantCompany(company.name || '');
-              setParticipantCompanyId(company.id);
-              setViewMode('PARTICIPANT');
-              setIsLoading(false);
-              return;
-            }
-          }
-        }
-      } catch (e) {
-        console.warn('Public link handling failed', e);
-      }
-
-      // 2) Query param public/embed mode: ?mode=public&template=...
-      if (mode === 'public') {
-        const data = await getAssessmentData(templateIdParam);
-        setAssessmentData(data);
-        setParticipantCompany('');
-        setParticipantCompanyId('PUBLIC_NEW');
-        setViewMode('PARTICIPANT');
-        setIsLoading(false);
-        return;
-      }
-
-      // 3) Query param participant via company name or (defensive) publicId in company param
-      if (companyName) {
-        // Load all companies to handle duplicates
-        const companies = await getCompanies();
-
-        // Case-insensitive compare normalized names
-        const normalizedInput = companyName.toLowerCase();
-        const matches = companies.filter(c => (c.name || '').toLowerCase() === normalizedInput);
-
-        if (matches.length === 1) {
-          const chosen = matches[0];
-          const data = await getAssessmentData(chosen.templateId || 'default-standard');
-          setAssessmentData(data);
-          setParticipantCompany(chosen.name);
-          setParticipantCompanyId(chosen.id);
-          setViewMode('PARTICIPANT');
-          setIsLoading(false);
-          return;
-        }
-
-        if (matches.length > 1) {
-          // Try disambiguation using the type= param mapping to templateId
-          const mapped = mapTypeToTemplateId(typeParam || undefined);
-          if (mapped) {
-            const found = matches.find(m => (m.templateId || '').toLowerCase() === mapped.toLowerCase());
-            if (found) {
-              const data = await getAssessmentData(found.templateId || 'default-standard');
-              setAssessmentData(data);
-              setParticipantCompany(found.name);
-              setParticipantCompanyId(found.id);
-              setViewMode('PARTICIPANT');
-              setIsLoading(false);
-              return;
-            }
-          }
-
-          // If still ambiguous, pick the most recently created one (the second assessment you created will be newer)
-          const newest = matches.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
-          if (newest) {
-            const data = await getAssessmentData(newest.templateId || 'default-standard');
-            setAssessmentData(data);
-            setParticipantCompany(newest.name);
-            setParticipantCompanyId(newest.id);
-            setViewMode('PARTICIPANT');
-            setIsLoading(false);
-            return;
-          }
-        }
-
-        // No exact name match: try interpreting company param as a publicId (defensive)
-        try {
-          const byPublic = await getCompanyByPublicId(companyNameRaw || companyName);
-          if (byPublic) {
-            const data = await getAssessmentData(byPublic.templateId || 'default-standard');
-            setAssessmentData(data);
-            setParticipantCompany(byPublic.name);
-            setParticipantCompanyId(byPublic.id);
-            setViewMode('PARTICIPANT');
-            setIsLoading(false);
-            return;
-          }
-        } catch (e) {
-          // fall through
-        }
-
-        // As an extra fallback: try to find any company whose name includes the param string
-        const partial = companies.find(c => (c.name || '').toLowerCase().includes(normalizedInput));
-        if (partial) {
-          const data = await getAssessmentData(partial.templateId || 'default-standard');
-          setAssessmentData(data);
-          setParticipantCompany(partial.name);
-          setParticipantCompanyId(partial.id);
-          setViewMode('PARTICIPANT');
-          setIsLoading(false);
-          return;
-        }
-      }
-
-      // 4) Result view via query params (compatibility with older links)
-      if (viewResultMode && companyName) {
-        const companies = await getCompanies();
-        const exact = companies.find(c => (c.name || '').toLowerCase() === companyName.toLowerCase());
-        if (exact) {
-          const data = await getAssessmentData(exact.templateId || 'default-standard');
-          setAssessmentData(data);
-          setReportCompany(exact);
-          setViewMode('SINGLE_REPORT');
-          setIsLoading(false);
-          return;
-        }
-
-        const byPublic = await getCompanyByPublicId(companyName);
-        if (byPublic) {
-          const data = await getAssessmentData(byPublic.templateId || 'default-standard');
-          setAssessmentData(data);
-          setReportCompany(byPublic);
-          setViewMode('SINGLE_REPORT');
-          setIsLoading(false);
-          return;
-        }
-      }
-
-      // Default: show dashboard or login depending on session
-      const current = getCurrentUser();
-      if (current) {
+        // Try to load user session
+        const current = await getCurrentUser();
         setUser(current);
-        setViewMode('DASHBOARD');
-      } else {
-        setViewMode('LOGIN');
+
+        const companyNameRaw = getParam('company');
+        const companyName = normalizeNameParam(companyNameRaw);
+        const mode = getParam('mode');
+        const templateIdParam = getParam('template') || undefined;
+        const typeParam = getParam('type'); // human-readable type hint
+
+        if (companyName) {
+          // Participant or report flow via query params
+          const mappedTemplateId = mapTypeToTemplateId(typeParam) || templateIdParam;
+          setParticipantCompany(companyName);
+          // Attempt to find the company by name and template if needed
+          const comps = await getCompanies();
+          const found = comps.find(c => c.name.toLowerCase() === companyName.toLowerCase() && (!mappedTemplateId || c.templateId === mappedTemplateId));
+          if (found) {
+            setParticipantCompanyId(found.id);
+            // If mode indicates participant, go to participant view
+            if (mode === 'participant' || mode === 'take') {
+              setViewMode('PARTICIPANT');
+              const data = await getAssessmentData(found.templateId);
+              setAssessmentData(data);
+            } else {
+              // default: open participant view if company exists and there are responses or explicit mode
+              setViewMode('PARTICIPANT');
+              const data = await getAssessmentData(found.templateId);
+              setAssessmentData(data);
+            }
+          } else {
+            // If not found, maybe this is a quick link for creating a temporary company view
+            // We'll render ParticipantView but without a persisted company
+            setParticipantCompanyId('');
+            setViewMode('PARTICIPANT');
+            const useTemplate = mappedTemplateId || 'default-strategy';
+            const data = await getAssessmentData(useTemplate);
+            setAssessmentData(data);
+          }
+        } else {
+          // No direct company in URL — default behavior: show dashboard or login
+          setViewMode(current ? 'DASHBOARD' : 'LOGIN');
+        }
+      } catch (err) {
+        console.error('App init error', err);
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
 
-    loadData();
+    init();
   }, []);
 
-  if (isLoading) return <LoadingSpinner />;
+  // Utility: view a single report (Admin -> Report)
+  const onViewReport = async (company: Company) => {
+    setIsLoading(true);
+    try {
+      setReportCompany(company);
+      setViewMode('SINGLE_REPORT');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  return (
-    <div>
-      {viewMode === 'LOGIN' && <LoginScreen onLoginSuccess={(u) => { setUser(u); setViewMode('DASHBOARD'); }} />}
+  const onBatchPrint = async (companies: Company[]) => {
+    setBatchCompanies(companies);
+    setViewMode('BATCH_PRINT');
+  };
 
-      {viewMode === 'DASHBOARD' && user && (
-        <AdminDashboard
-          user={user}
-          onLogout={() => { logout(); setUser(null); setViewMode('LOGIN'); }}
-          onViewReport={(c) => { setReportCompany(c); setViewMode('SINGLE_REPORT'); }}
-          onBatchPrint={(cs) => { setBatchCompanies(cs); setViewMode('BATCH_PRINT'); }}
-          onMasterReport={(c) => { setMasterReportData(c[0]); setViewMode('MASTER_REPORT'); }}
-          onManualEntry={(c) => { setManualEntryCompany(c); setViewMode('MANUAL_ENTRY'); }}
-        />
-      )}
+  const onMasterReport = async (companies: Company[]) => {
+    // Simple master report: choose first company's template and aggregate externally
+    if (!companies || companies.length === 0) return;
+    setMasterReportData(companies[0]);
+    setViewMode('MASTER_REPORT');
+  };
 
-      {viewMode === 'PARTICIPANT' && assessmentData && (
-        <ParticipantView
-          companyName={participantCompany}
-          companyId={participantCompanyId || undefined}
-          assessmentData={assessmentData}
-        />
-      )}
+  const onManualEntry = async (company: Company) => {
+    setManualEntryCompany(company);
+    setViewMode('MANUAL_ENTRY');
+  };
 
-      {viewMode === 'SINGLE_REPORT' && reportCompany && assessmentData && (
-        <TeamReport
-          companyName={reportCompany.name}
-          assessmentData={assessmentData}
-          allResponses={reportCompany.responses}
-          onRestart={() => window.location.reload()}
-        />
-      )}
+  // Participant submits their responses
+  const handleParticipantSubmit = async (companyIdOrName: string, response: ParticipantResponse, templateId?: string) => {
+    setIsLoading(true);
+    try {
+      // If we have a persisted companyId, use it. Otherwise, create a company record (ephemeral or saved)
+      let companyId = companyIdOrName;
+      let companyRecord: Company | undefined;
+      if (!companyId) {
+        // create new company with provided name if needed
+        const created = await createCompany(participantCompany || 'Anonymous', templateId || 'default-strategy');
+        companyId = created.id;
+        companyRecord = created;
+      } else {
+        // attempt to find company in storage (by id)
+        const comps = await getCompanies();
+        companyRecord = comps.find(c => c.id === companyId);
+      }
 
-      {viewMode === 'BATCH_PRINT' && (
-        <BatchPrintView companies={batchCompanies} onDone={() => setViewMode('DASHBOARD')} />
-      )}
+      await addResponseToCompany(companyId, response);
 
-      {viewMode === 'MASTER_REPORT' && masterReportData && assessmentData && (
-        <TeamReport companyName={masterReportData.name} assessmentData={assessmentData} allResponses={masterReportData.responses} onRestart={() => setViewMode('DASHBOARD')} mode="master" />
-      )}
+      // Mark viewed / update last activity
+      await markCompanyViewed(companyId);
 
-      {viewMode === 'MANUAL_ENTRY' && manualEntryCompany && assessmentData && (
-        <ParticipantView companyName={manualEntryCompany.name} companyId={manualEntryCompany.id} assessmentData={assessmentData} />
-      )}
-    </div>
-  );
+      // Optionally trigger automation webhook if configured
+      try {
+        await triggerAutomationWebhook({ companyId, response });
+      } catch (e) {
+        // Non-fatal
+        console.warn('Webhook failed', e);
+      }
+
+      // After submission, redirect to a thank-you / report page (reuse report view)
+      if (companyRecord) {
+        setReportCompany(companyRecord);
+        setViewMode('SINGLE_REPORT');
+      } else {
+        // fetch refreshed company if newly created
+        const comps = await getCompanies();
+        const found = comps.find(c => c.id === companyId);
+        if (found) {
+          setReportCompany(found);
+          setViewMode('SINGLE_REPORT');
+        } else {
+          // fallback to dashboard
+          setViewMode('DASHBOARD');
+        }
+      }
+    } catch (err) {
+      console.error('Submit error', err);
+      alert('Failed to submit response. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    setUser(null);
+    setViewMode('LOGIN');
+  };
+
+  if (isLoading) return <div className="min-h-screen flex items-center justify-center"><LoadingSpinner /></div>;
+
+  // Render by mode
+  if (viewMode === 'LOGIN') {
+    return <LoginScreen onLogin={(u) => { setUser(u); setViewMode('DASHBOARD'); }} />;
+  }
+
+  if (viewMode === 'DASHBOARD') {
+    return (
+      <AdminDashboard
+        user={user as User}
+        onLogout={handleLogout}
+        onViewReport={onViewReport}
+        onBatchPrint={onBatchPrint}
+        onMasterReport={onMasterReport}
+        onManualEntry={onManualEntry}
+      />
+    );
+  }
+
+  if (viewMode === 'PARTICIPANT') {
+    return (
+      <ParticipantView
+        companyName={participantCompany}
+        companyId={participantCompanyId}
+        assessmentData={assessmentData}
+        onSubmit={(response) => handleParticipantSubmit(participantCompanyId, response, assessmentData?.templateId)}
+      />
+    );
+  }
+
+  if (viewMode === 'SINGLE_REPORT' && reportCompany) {
+    return (
+      <TeamReport company={reportCompany} onBack={() => setViewMode('DASHBOARD')} />
+    );
+  }
+
+  if (viewMode === 'BATCH_PRINT') {
+    return <BatchPrintView companies={batchCompanies} onBack={() => setViewMode('DASHBOARD')} />;
+  }
+
+  if (viewMode === 'MASTER_REPORT' && masterReportData) {
+    return <TeamReport company={masterReportData} onBack={() => setViewMode('DASHBOARD')} masterMode={true} />;
+  }
+
+  if (viewMode === 'MANUAL_ENTRY' && manualEntryCompany) {
+    return <TeamReport company={manualEntryCompany} onBack={() => setViewMode('DASHBOARD')} manualEntryMode={true} />;
+  }
+
+  // Default fallback
+  return <div className="min-h-screen flex items-center justify-center"><LoadingSpinner /></div>;
 };
 
 export default App;

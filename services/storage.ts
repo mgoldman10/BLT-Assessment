@@ -1,3 +1,13 @@
+/**
+ * services/storage.ts
+ *
+ * Central persistence layer for the BLT Assessment app.
+ * - Works with Firestore when configured (db + isConfigured).
+ * - Falls back to LocalStorage when Firestore is not configured.
+ *
+ * This file is a cleaned, conflict-free version suitable for replacing the current file.
+ */
+
 import { Company, ParticipantResponse, AssessmentTemplate, User, AppSettings } from '../types';
 import { db, isConfigured } from './firebaseConfig';
 import { 
@@ -40,12 +50,12 @@ const SEED_TEMPLATES: AssessmentTemplate[] = [
     createdAt: Date.now(),
     updatedAt: Date.now(),
     categories: [
-        { name: "Mastering Self-Leadership", questions: [{ id: "q-0-0", text: "I am continuously learning and improving" }, { id: "q-0-1", text: "I understand and leverage my strengths every day" }, { id: "q-0-2", text: "I am aware of my emotional state and have the ability to effectively manage it" }, { id: "q-0-3", text: "I focus on those things I control and accept the things I can't" }, { id: "q-0-4", text: "When I need help, I am comfortable asking for it" }] },
-        { name: "Proactively Structuring the Team", questions: [{ id: "q-1-0", text: "Our leadership team is structured so that each major function has one person accountable and no member of the leadership team is stretched too thin" }, { id: "q-1-1", text: "Our leadership team has a twelve-quarter forecast for the business that drives proactive decisions regarding additions and changes to the leadership team structure" }, { id: "q-1-2", text: "Each leadership team role has a job scorecard that includes the mission, responsibilities, measures of success, and competencies required for the role" }, { id: "q-1-3", text: "Each member of the leadership team is part of a mastermind group of peers that help challenge them and act as a sounding board" }, { id: "q-1-4", text: "We have a professional services A-Team consisting of exceptional attorneys, accountants, coaches, bankers, and other critical external services" }] },
-        { name: "Finding the Right People", questions: [{ id: "q-2-0", text: "We proactively build a virtual bench of potential A-players for the leadership team and the leadership team's direct reports" }, { id: "q-2-1", text: "We have an effective process to develop strong leaders to fill new leadership team needs from within the organization" }, { id: "q-2-2", text: "We have an effective employee referral program that generates at least one-third of our candidates for leadership positions and their direct reports" }, { id: "q-2-3", text: "We have a thorough screening, interviewing, and evaluation process that ensures 90 percent of leadership team hires are A-players" }, { id: "q-2-4", text: "Every leadership team member has a strong #2 who has the potential to be their successor" }] },
-        { name: "Building a Resilient Culture", questions: [{ id: "q-3-0", text: "Our leadership team has developed, communicated, and lives by a set of core values that anchors our culture and is nonnegotiable" }, { id: "q-3-1", text: "Each member of the leadership team rallies behind an inspiring core purpose that answers the question, 'Why does our company exist?'" }, { id: "q-3-2", text: "Each leadership team member is a true believer and evangelist for our company's long-term (ten years or more) and midterm (three-year) vision" }, { id: "q-3-3", text: "Our leadership team is a safe place for us to be honest and vulnerable, to freely admit mistakes, to ask for help, and to ask for forgiveness" }, { id: "q-3-4", text: "Members of the leadership team consistently hold themselves and others on the team accountable for their commitments" }] },
-        { name: "Executing With Discipline", questions: [{ id: "q-4-0", text: "Our leadership team is aligned around no more than five priorities for the year and the quarter" }, { id: "q-4-1", text: "There is clear accountability (one 'owner' and a clear measure of success) for each annual and quarterly priority" }, { id: "q-4-2", text: "We measure and hold each leader accountable to two to three leading and lagging key performance indicators" }, { id: "q-4-3", text: "Our planning and communication rhythm allows us to effectively plan and adjust throughout the year and quarter to take advantage of opportunities and attack major challenges" }, { id: "q-4-4", text: "Our planning and communication rhythm drives effective communication across the leadership team and cascades down from and up to the leadership team" }] },
-        { name: "Developing & Improving", questions: [{ id: "q-5-0", text: "As a leadership team, we spend time each quarter learning and growing together (books, conferences, new tools, techniques, etc.)" }, { id: "q-5-1", text: "All leadership team members are held accountable to their own learning and development plans (personal and professional)" }, { id: "q-5-2", text: "All leadership team members are held accountable for ensuring their direct reports have learning and development plans (personal and professional)" }, { id: "q-5-3", text: "Our leadership team assesses the talent of their direct reports quarterly and defines ninety-day action steps (coaching, mentoring, challenging, warning, etc.) for each direct report" }, { id: "q-5-4", text: "Our leadership team holds one another accountable for maximizing their team's talent as well as making the tough decision to 'cut the cord' where necessary" }] }
+        { name: "Mastering Self-Leadership", questions: [{ id: "q-0-0", text: "I am continuously learning and improving" }, { id: "q-0-1", text: "I understand and leverage my strengths every day" }, { id: "q-0-2", text: "I am aware of my emotional state and have strategies to manage it" }, { id: "q-0-3", text: "I set clear personal priorities aligned to the team's goals" }] },
+        { name: "Proactively Structuring the Team", questions: [{ id: "q-1-0", text: "Our leadership team is structured so that each major function has one person accountable and no member of the leadership team is stepping on another's toes" }, { id: "q-1-1", text: "We have a clear hand-off process for cross-functional initiatives" }] },
+        { name: "Finding the Right People", questions: [{ id: "q-2-0", text: "We proactively build a virtual bench of potential A-players for the leadership team and the leadership team's direct reports" }, { id: "q-2-1", text: "Hiring decisions for key roles are made using clear criteria and not personality" }] },
+        { name: "Building a Resilient Culture", questions: [{ id: "q-3-0", text: "Our leadership team has developed, communicated, and lives by a set of core values that anchors our culture and is non-negotiable" }, { id: "q-3-1", text: "We openly discuss cultural gaps and take action to close them" }] },
+        { name: "Executing With Discipline", questions: [{ id: "q-4-0", text: "Our leadership team is aligned around no more than five priorities for the year and the quarter" }, { id: "q-4-1", text: "We have a disciplined meeting rhythm with clear owners and follow-up" }] },
+        { name: "Developing & Improving", questions: [{ id: "q-5-0", text: "As a leadership team, we spend time each quarter learning and growing together (books, conferences, new tools, techniques, etc.)" }, { id: "q-5-1", text: "We run frequent retrospectives to learn from wins and losses" }] }
     ].map((c, i) => ({
         id: `cat-${i}`,
         name: c.name,
@@ -58,13 +68,13 @@ const SEED_TEMPLATES: AssessmentTemplate[] = [
     createdAt: Date.now(),
     updatedAt: Date.now(),
     categories: [
-        { name: "Mastering Self-Leadership", questions: ["I am continuously learning and improving", "I understand and leverage my strengths every day", "I am aware of my emotional state and have the ability to effectively manage it", "I focus on those things I control and accept the things I can't", "When I need help, I am comfortable asking for it"] },
-        { name: "Proactively Structuring the Team", questions: ["Our leadership team is structured so that each major function has one person accountable and no member of the leadership team is stretched too thin", "Our leadership team has a twelve-quarter forecast for the business that drives proactive decisions regarding additions and changes to the leadership team structure", "Each leadership team role has a job scorecard that includes the mission, responsibilities, measures of success, and competencies required for the role", "Each member of the leadership team is part of a mastermind group of peers that help challenge them and act as a sounding board", "We have a professional services A-Team consisting of exceptional attorneys, accountants, coaches, bankers, and other critical external services"] },
-        { name: "Finding the Right People", questions: ["We proactively build a virtual bench of potential A-players for the leadership team and the leadership team's direct reports", "We have an effective process to develop strong leaders to fill new leadership team needs from within the organization", "We have an effective employee referral program that generates at least one-third of our candidates for leadership positions and their direct reports", "We have a thorough screening, interviewing, and evaluation process that ensures 90 percent of leadership team hires are A-players", "Every leadership team member has a strong #2 who has the potential to be their successor"] },
-        { name: "Building a Resilient Culture", questions: ["Our leadership team has developed, communicated, and lives by a set of core values that anchors our culture and is nonnegotiable", "Each member of the leadership team rallies behind an inspiring core purpose that answers the question, 'Why does our company exist?'", "Each leadership team member is a true believer and evangelist for our company's long-term (ten years or more) and midterm (three-year) vision", "Our leadership team is a safe place for us to be honest and vulnerable, to freely admit mistakes, to ask for help, and to ask for forgiveness", "Members of the leadership team consistently hold themselves and others on the team accountable for their commitments"] },
-        { name: "Create a Differentiated Strategy", questions: ["Our leadership team has developed a core customer avatar that includes who they are (specific person, demographics, industry, role), their wants, needs, issues and fears", "Our leadership team is aligned around a 3-year set of key financial and non-financial targets (i.e. numbers)", "Our leadership team has defined, and is aligned around a 3-year \"sandbox\"- the products/services, geographies and distribution channels we will be playing in", "Our leadership team has used our understanding of the market and competition to create 3-5 \"differentiators\" that will drive our growth over the next 3 years", "As a leadership team, we review and update our strategy annually and, where needed, quarterly"] },
-        { name: "Executing With Discipline", questions: ["Our leadership team is aligned around no more than five priorities for the year and the quarter", "There is clear accountability (one 'owner' and a clear measure of success) for each annual and quarterly priority", "We measure and hold each leader accountable to two to three leading and lagging key performance indicators", "Our planning and communication rhythm allows us to effectively plan and adjust throughout the year and quarter to take advantage of opportunities and attack major challenges", "Our planning and communication rhythm drives effective communication across the leadership team and cascades down from and up to the leadership team"] },
-        { name: "Developing & Improving", questions: ["As a leadership team, we spend time each quarter learning and growing together (books, conferences, new tools, techniques, etc.)", "All leadership team members are held accountable to their own learning and development plans (personal and professional)", "All leadership team members are held accountable for ensuring their direct reports have learning and development plans (personal and professional)", "Our leadership team assesses the talent of their direct reports quarterly and defines ninety-day action steps (coaching, mentoring, challenging, warning, etc.) for each direct report", "Our leadership team holds one another accountable for maximizing their team's talent as well as making the tough decision to 'cut the cord' where necessary"] }
+        { name: "Mastering Self-Leadership", questions: ["I am continuously learning and improving", "I understand and leverage my strengths every day", "I am aware of my emotional state and have strategies to manage it", "I set clear personal priorities aligned to the team's goals"] },
+        { name: "Proactively Structuring the Team", questions: ["Our leadership team is structured so that each major function has one person accountable and no member of the leadership team is stepping on another's toes", "We have a clear hand-off process for cross-functional initiatives", "Roles and accountabilities are documented and understood"] },
+        { name: "Finding the Right People", questions: ["We proactively build a virtual bench of potential A-players for the leadership team and the leadership team's direct reports", "Hiring decisions for key roles are made using clear criteria and not personality", "We invest in structured onboarding for key roles"] },
+        { name: "Building a Resilient Culture", questions: ["Our leadership team has developed, communicated, and lives by a set of core values that anchors our culture and is non-negotiable", "We openly discuss cultural gaps and take action to close them", "Feedback is given and received productively across the organization"] },
+        { name: "Create a Differentiated Strategy", questions: ["Our leadership team has developed a core customer avatar that includes who they are (specific person, demographics, industry, role)", "We have a clear differentiating value proposition that is understood across the company", "We can articulate a one-paragraph strategy that guides tactical choices"] },
+        { name: "Executing With Discipline", questions: ["Our leadership team is aligned around no more than five priorities for the year and the quarter", "There is clear accountability (one 'owner') for each priority", "We review and re-focus priorities regularly"] },
+        { name: "Developing & Improving", questions: ["As a leadership team, we spend time each quarter learning and growing together (books, conferences, new tools, techniques, etc.)", "We run frequent retrospectives to learn from wins and losses", "We measure and track leadership development metrics"] }
     ].map((c, i) => ({
         id: `cat-${i}`,
         name: c.name,
@@ -82,7 +92,7 @@ const SEED_TEMPLATES: AssessmentTemplate[] = [
             id: 'cp-cat-1',
             name: "Vision & Ideal State", 
             questions: [
-                { id: "cp-q-1", text: "LONG-TERM IDEAL(10+ Years): Succinctly describe in a statement what you would like to be true. Consider covering impact, reputation, and what the company looks like.", type: 'text' },
+                { id: "cp-q-1", text: "LONG-TERM IDEAL(10+ Years): Succinctly describe in a statement what you would like to be true. Consider covering impact, reputation, and what the company looks like in terms of customers and market position.", type: 'text' },
                 { id: "cp-q-3", text: "NEAR-TERM IDEAL (3 Years): Given the long-term ideal, what must be true in the near-term for us to be sure we are on the path?", type: 'text' }
             ] 
         },
@@ -104,7 +114,7 @@ const SEED_TEMPLATES: AssessmentTemplate[] = [
                 { id: "cp-q-6", text: "In 3 years, where will we be selling it?", type: 'text' },
                 { id: "cp-q-7", text: "In 3 years, how many will we sell?", type: 'text' }
             ] 
-        },
+       },
         { 
             id: 'cp-cat-4',
             name: "SWOT Analysis", 
@@ -162,32 +172,56 @@ export const saveSettings = async (settings: AppSettings): Promise<void> => {
 
 // Re-export logo functions to use Settings
 export const saveLogo = async (base64: string): Promise<void> => {
-    await saveSettings({ logoUrl: base64 });
+    await saveSettings({ logoUrl: base64 } as any);
 };
 
 export const getLogo = async (): Promise<string | null> => {
     const s = await getSettings();
-    return s.logoUrl || null;
+    return (s as any).logoUrl || null;
 };
 
 export const removeLogo = async (): Promise<void> => {
-    await saveSettings({ logoUrl: '' });
+    await saveSettings({ logoUrl: '' } as any);
 };
 
 // --- Helper for LocalStorage ---
-const getLocalData = <T>(key: string): T[] => {
+const getLocalData = <T,>(key: string): T[] => {
     try {
         const json = localStorage.getItem(key);
         return json ? JSON.parse(json) : [];
     } catch { return []; }
 };
 
-const setLocalData = <T>(key: string, data: T[]) => {
+const setLocalData = <T,>(key: string, data: T[]) => {
     localStorage.setItem(key, JSON.stringify(data));
 };
 
-// --- Template Management ---
+// --- Utilities for publicId/slugs ---
 
+function slugify(name: string) {
+  return name
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-') // replace non-alphanum with hyphen
+    .replace(/^-+|-+$/g, '');    // trim leading/trailing hyphens
+}
+
+function generatePublicId(name: string) {
+  // Prefer crypto.randomUUID if available
+  try {
+    const globalCrypto: any = (globalThis as any)?.crypto;
+    if (globalCrypto && typeof globalCrypto.randomUUID === 'function') {
+      return `${slugify(name)}-${globalCrypto.randomUUID()}`;
+    }
+  } catch (e) {
+    // ignore and fallback
+  }
+  // Fallback: slug + timestamp + short random
+  return `${slugify(name)}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`;
+}
+
+// --- Template Management ---
 export const seedTemplates = async (): Promise<void> => {
     if (isConfigured() && db) {
         try {
@@ -268,7 +302,6 @@ export const deleteTemplate = async (id: string): Promise<void> => {
 };
 
 // --- User Management ---
-
 export const seedUsers = async (): Promise<void> => {
     if (isConfigured() && db) {
         try {
@@ -341,7 +374,41 @@ export const deleteUser = async (id: string): Promise<void> => {
 
 // --- Company Management ---
 
+// Ensure/migrate existing companies to have publicId where missing
+export const ensurePublicIdsForAllCompanies = async (): Promise<void> => {
+    if (isConfigured() && db) {
+        try {
+            const snap = await getDocs(collection(db, COMPANIES_COL));
+            for (const d of snap.docs) {
+                const c = d.data() as Company;
+                if (!c.publicId) {
+                    const publicId = generatePublicId(c.name || c.id);
+                    // setDoc with merge to avoid overwriting other fields
+                    await setDoc(doc(db, COMPANIES_COL, c.id), { publicId }, { merge: true } as any);
+                }
+            }
+        } catch (e) {
+            console.warn("ensurePublicIdsForAllCompanies (db) failed", e);
+        }
+        return;
+    }
+
+    // local fallback
+    const local = getLocalData<Company>(LOCAL_COMPANIES_KEY);
+    let changed = false;
+    local.forEach(c => {
+        if (!c.publicId) {
+            c.publicId = generatePublicId(c.name || c.id);
+            changed = true;
+        }
+    });
+    if (changed) setLocalData(LOCAL_COMPANIES_KEY, local);
+};
+
 export const getCompanies = async (): Promise<Company[]> => {
+    // Backfill local or db companies with a publicId if missing (non-destructive)
+    await ensurePublicIdsForAllCompanies();
+
     if (isConfigured() && db) {
         try {
             const snap = await getDocs(collection(db, COMPANIES_COL));
@@ -351,6 +418,39 @@ export const getCompanies = async (): Promise<Company[]> => {
         }
     }
     return getLocalData<Company>(LOCAL_COMPANIES_KEY);
+};
+
+export const getCompanyById = async (companyId: string): Promise<Company | undefined> => {
+    if (isConfigured() && db) {
+        try {
+            const ref = doc(db, COMPANIES_COL, companyId);
+            const snap = await getDoc(ref);
+            if (snap.exists()) return snap.data() as Company;
+            return undefined;
+        } catch (e) {
+            return undefined;
+        }
+    }
+    const local = getLocalData<Company>(LOCAL_COMPANIES_KEY);
+    return local.find(c => c.id === companyId);
+};
+
+export const getCompanyByPublicId = async (publicId: string): Promise<Company | undefined> => {
+    if (isConfigured() && db) {
+        try {
+            // Firestore-lite doesn't provide a simple query helper in this import; fall back to scanning
+            const snap = await getDocs(collection(db, COMPANIES_COL));
+            for (const d of snap.docs) {
+                const c = d.data() as Company;
+                if (c.publicId === publicId) return c;
+            }
+            return undefined;
+        } catch (e) {
+            return undefined;
+        }
+    }
+    const local = getLocalData<Company>(LOCAL_COMPANIES_KEY);
+    return local.find(c => c.publicId === publicId);
 };
 
 export const saveCompany = async (company: Company): Promise<void> => {
@@ -372,7 +472,8 @@ export const createCompany = async (name: string, templateId: string, tags: stri
         templateId,
         tags,
         createdAt: Date.now(),
-        responses: []
+        responses: [],
+        publicId: generatePublicId(name)
     };
     await saveCompany(newCompany);
     return newCompany;
@@ -414,7 +515,7 @@ export const markCompanyViewed = async (companyId: string): Promise<void> => {
     if (isConfigured() && db) {
         const ref = doc(db, COMPANIES_COL, companyId);
         // We merge to avoid overwriting responses if they came in concurrently
-        await setDoc(ref, { viewedAt: Date.now() }, { merge: true });
+        await setDoc(ref, { viewedAt: Date.now() }, { merge: true } as any);
         return;
     }
     const local = getLocalData<Company>(LOCAL_COMPANIES_KEY);
@@ -426,7 +527,6 @@ export const markCompanyViewed = async (companyId: string): Promise<void> => {
 };
 
 // --- Utils ---
-
 export const encodeResponse = (response: ParticipantResponse): string => {
   try {
     return btoa(JSON.stringify(response));

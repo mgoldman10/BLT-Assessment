@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AssessmentData, Company, ParticipantResponse, User } from './types';
 import { getAssessmentData } from './services/geminiService';
-import { getCompanies, saveCompany, addResponseToCompany, markCompanyViewed, getSettings, createCompany, getCompanyByPublicId, getCompanyById } from './services/storage';
+import { getCompanies, saveCompany, addResponseToCompany, markCompanyViewed, getSettings, createCompany } from './services/storage'; 
 import { getCurrentUser, logout } from './services/authService';
 import { triggerAutomationWebhook } from './services/webhookService';
 import LoadingSpinner from './components/LoadingSpinner';
@@ -13,37 +13,14 @@ import LoginScreen from './components/LoginScreen';
 
 type ViewMode = 'LOGIN' | 'DASHBOARD' | 'PARTICIPANT' | 'SINGLE_REPORT' | 'BATCH_PRINT' | 'MASTER_REPORT' | 'MANUAL_ENTRY';
 
-const mapTypeToTemplateId = (type?: string) => {
-  if (!type) return undefined;
-  const t = type.toLowerCase();
-  if (t.includes('pre-planning') || t.includes('preplanning') || t.includes('pre-plann')) return 'default-coaching';
-  if (t.includes('extended') || t.includes('35')) return 'default-strategy';
-  // default mapping fallback
-  if (t.includes('blt')) return 'default-standard';
-  return undefined;
-};
-
-const mapTemplateIdToTypeParam = (tid?: string) => {
-  if (!tid) return 'BLT';
-  if (tid === 'default-coaching') return 'Pre-Planning';
-  if (tid === 'default-strategy') return 'BLT-Extended';
-  return 'BLT';
-};
-
-const normalizeNameParam = (s: string | null) => {
-  if (!s) return '';
-  // Replace '+' with space (defensive), trim, and normalize spaces
-  return s.replace(/\+/g, ' ').trim();
-};
-
 const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('DASHBOARD');
   const [user, setUser] = useState<User | null>(null);
-
+  
   // Participant State
   const [participantCompany, setParticipantCompany] = useState('');
-  const [participantCompanyId, setParticipantCompanyId] = useState<string>('');
+  const [participantCompanyId, setParticipantCompanyId] = useState<string>(''); 
 
   // Report State
   const [reportCompany, setReportCompany] = useState<Company | null>(null);
@@ -55,246 +32,190 @@ const App: React.FC = () => {
 
   const [assessmentData, setAssessmentData] = useState<AssessmentData | null>(null);
 
-  // Load initial user & maybe route params
   useEffect(() => {
-    // Robust handling for /r/:token short links:
-    // If the path is /r/:token, resolve token -> company and redirect to query-style URL
-    const pathMatch = window.location.pathname.match(/^\/r\/([^\/?#]+)/);
-    if (pathMatch) {
-      const token = decodeURIComponent(pathMatch[1]);
-      (async () => {
-        try {
-          // Try to find the company by publicId first, then fallback to id
-          let company = await getCompanyByPublicId(token);
-          if (!company) company = await getCompanyById(token);
-          if (company) {
-            const typeParam = mapTemplateIdToTypeParam(company.templateId);
-            const url = `/?company=${encodeURIComponent(company.name)}&type=${encodeURIComponent(typeParam)}`;
-            // Replace current location with the query-style URL (causes a single navigation)
-            window.location.replace(url);
-            return;
-          }
-          // If company not found, continue to parse params normally and let UI handle "not found".
-        } catch (err) {
-          console.error('Error resolving share token', token, err);
-        }
-      })();
-      // stop further processing in this effect for now (we're navigating away if matched)
-      return;
-    }
-
-    // existing param parsing & initialization
     const getParam = (key: string) => {
-      const urlParams = new URLSearchParams(window.location.search);
-      const param = urlParams.get(key);
-      if (param) return param;
+        const urlParams = new URLSearchParams(window.location.search);
+        const param = urlParams.get(key);
+        if (param) return param;
 
-      if (window.location.hash && window.location.hash.includes('?')) {
-        try {
-          const hashString = window.location.hash.split('?')[1];
-          const hashParams = new URLSearchParams(hashString);
-          return hashParams.get(key);
-        } catch (e) {}
-      }
-      return null;
-    };
-
-    const init = async () => {
-      setIsLoading(true);
-      try {
-        // Try to load user session
-        const current = await getCurrentUser();
-        setUser(current);
-
-        const companyNameRaw = getParam('company');
-        const companyName = normalizeNameParam(companyNameRaw);
-        const mode = getParam('mode');
-        const templateIdParam = getParam('template') || undefined;
-        const typeParam = getParam('type'); // human-readable type hint
-
-        if (companyName) {
-          // Participant or report flow via query params
-          const mappedTemplateId = mapTypeToTemplateId(typeParam) || templateIdParam;
-          setParticipantCompany(companyName);
-          // Attempt to find the company by name and template if needed
-          const comps = await getCompanies();
-          const found = comps.find(c => c.name.toLowerCase() === companyName.toLowerCase() && (!mappedTemplateId || c.templateId === mappedTemplateId));
-          if (found) {
-            setParticipantCompanyId(found.id);
-            // If mode indicates participant, go to participant view
-            if (mode === 'participant' || mode === 'take') {
-              setViewMode('PARTICIPANT');
-              const data = await getAssessmentData(found.templateId);
-              setAssessmentData(data);
-            } else {
-              // default: open participant view if company exists and there are responses or explicit mode
-              setViewMode('PARTICIPANT');
-              const data = await getAssessmentData(found.templateId);
-              setAssessmentData(data);
-            }
-          } else {
-            // If not found, maybe this is a quick link for creating a temporary company view
-            // We'll render ParticipantView but without a persisted company
-            setParticipantCompanyId('');
-            setViewMode('PARTICIPANT');
-            const useTemplate = mappedTemplateId || 'default-strategy';
-            const data = await getAssessmentData(useTemplate);
-            setAssessmentData(data);
-          }
-        } else {
-          // No direct company in URL — default behavior: show dashboard or login
-          setViewMode(current ? 'DASHBOARD' : 'LOGIN');
+        if (window.location.hash && window.location.hash.includes('?')) {
+            try {
+                const hashString = window.location.hash.split('?')[1];
+                const hashParams = new URLSearchParams(hashString);
+                return hashParams.get(key);
+            } catch (e) {}
         }
-      } catch (err) {
-        console.error('App init error', err);
-      } finally {
-        setIsLoading(false);
-      }
+        return null;
     };
 
-    init();
+    const companyName = getParam('company');
+    const mode = getParam('mode');
+    const templateIdParam = getParam('template') || 'default-strategy';
+    const typeParam = getParam('type'); // Used for fallback
+
+    const loadData = async () => {
+      // Check for Public/Embed Mode
+      if (mode === 'public') {
+          const data = await getAssessmentData(templateIdParam);
+          setAssessmentData(data);
+          setParticipantCompany(''); 
+          setParticipantCompanyId('PUBLIC_NEW'); 
+          setViewMode('PARTICIPANT');
+      }
+      // Check for Invite/Participant Mode
+      else if (companyName) {
+        const companies = await getCompanies();
+        const targetCompany = companies.find(c => c.name === companyName);
+        
+        if (targetCompany) {
+             // Determine template ID to use
+             let finalTemplateId = targetCompany.templateId || 'default-standard';
+             
+             // Fallback Logic: If templateId seems wrong/missing, check URL type param
+             if (!targetCompany.templateId && typeParam) {
+                 if (typeParam === 'Pre-Planning') finalTemplateId = 'default-coaching';
+                 else if (typeParam === 'BLT-Extended') finalTemplateId = 'default-strategy';
+             }
+
+             const data = await getAssessmentData(finalTemplateId);
+             setAssessmentData(data);
+             setParticipantCompany(companyName);
+             setParticipantCompanyId(targetCompany.id); 
+             setViewMode('PARTICIPANT');
+        } else {
+             // Company not found in DB, show default standard
+             const data = await getAssessmentData('default-standard');
+             setAssessmentData(data);
+             setParticipantCompany(companyName);
+             setViewMode('PARTICIPANT');
+        }
+      } else {
+        const currentUser = getCurrentUser();
+        if (currentUser) {
+          setUser(currentUser);
+          setViewMode('DASHBOARD');
+        } else {
+          setViewMode('LOGIN');
+        }
+      }
+      setIsLoading(false);
+    };
+
+    loadData();
   }, []);
 
-  // Utility: view a single report (Admin -> Report)
-  const onViewReport = async (company: Company) => {
-    setIsLoading(true);
-    try {
-      setReportCompany(company);
-      setViewMode('SINGLE_REPORT');
-    } finally {
-      setIsLoading(false);
-    }
+  const handleLoginSuccess = (loggedInUser: User) => {
+    setUser(loggedInUser);
+    setViewMode('DASHBOARD');
   };
 
-  const onBatchPrint = async (companies: Company[]) => {
-    setBatchCompanies(companies);
-    setViewMode('BATCH_PRINT');
-  };
-
-  const onMasterReport = async (companies: Company[]) => {
-    // Simple master report: choose first company's template and aggregate externally
-    if (!companies || companies.length === 0) return;
-    setMasterReportData(companies[0]);
-    setViewMode('MASTER_REPORT');
-  };
-
-  const onManualEntry = async (company: Company) => {
-    setManualEntryCompany(company);
-    setViewMode('MANUAL_ENTRY');
-  };
-
-  // Participant submits their responses
-  const handleParticipantSubmit = async (companyIdOrName: string, response: ParticipantResponse, templateId?: string) => {
-    setIsLoading(true);
-    try {
-      // If we have a persisted companyId, use it. Otherwise, create a company record (ephemeral or saved)
-      let companyId = companyIdOrName;
-      let companyRecord: Company | undefined;
-      if (!companyId) {
-        // create new company with provided name if needed
-        const created = await createCompany(participantCompany || 'Anonymous', templateId || 'default-strategy');
-        companyId = created.id;
-        companyRecord = created;
-      } else {
-        // attempt to find company in storage (by id)
-        const comps = await getCompanies();
-        companyRecord = comps.find(c => c.id === companyId);
-      }
-
-      await addResponseToCompany(companyId, response);
-
-      // Mark viewed / update last activity
-      await markCompanyViewed(companyId);
-
-      // Optionally trigger automation webhook if configured
-      try {
-        await triggerAutomationWebhook({ companyId, response });
-      } catch (e) {
-        // Non-fatal
-        console.warn('Webhook failed', e);
-      }
-
-      // After submission, redirect to a thank-you / report page (reuse report view)
-      if (companyRecord) {
-        setReportCompany(companyRecord);
-        setViewMode('SINGLE_REPORT');
-      } else {
-        // fetch refreshed company if newly created
-        const comps = await getCompanies();
-        const found = comps.find(c => c.id === companyId);
-        if (found) {
-          setReportCompany(found);
-          setViewMode('SINGLE_REPORT');
-        } else {
-          // fallback to dashboard
-          setViewMode('DASHBOARD');
-        }
-      }
-    } catch (err) {
-      console.error('Submit error', err);
-      alert('Failed to submit response. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleLogout = async () => {
-    await logout();
+  const handleLogout = () => {
+    logout();
     setUser(null);
     setViewMode('LOGIN');
   };
 
-  if (isLoading) return <div className="min-h-screen flex items-center justify-center"><LoadingSpinner /></div>;
+  const handleViewReport = async (company: Company) => {
+    setIsLoading(true);
+    await markCompanyViewed(company.id);
+    const data = await getAssessmentData(company.templateId || 'default-standard');
+    setAssessmentData(data);
+    setReportCompany(company);
+    setViewMode('SINGLE_REPORT');
+    setIsLoading(false);
+  };
 
-  // Render by mode
-  if (viewMode === 'LOGIN') {
-    return <LoginScreen onLogin={(u) => { setUser(u); setViewMode('DASHBOARD'); }} />;
-  }
+  const handleBatchPrint = (companies: Company[]) => {
+    setBatchCompanies(companies);
+    setViewMode('BATCH_PRINT');
+  };
 
-  if (viewMode === 'DASHBOARD') {
+  const handleMasterReport = async (companies: Company[]) => {
+    setIsLoading(true);
+    const primaryTemplateId = companies[0]?.templateId || 'default-standard';
+    const data = await getAssessmentData(primaryTemplateId);
+    setAssessmentData(data);
+
+    const allResponses: ParticipantResponse[] = [];
+    companies.forEach(c => {
+        allResponses.push(...c.responses);
+    });
+
+    const masterCompany: Company = {
+        id: 'master-report',
+        name: `Aggregate Report (${companies.length} Teams)`,
+        templateId: primaryTemplateId,
+        createdAt: Date.now(),
+        responses: allResponses
+    };
+
+    setMasterReportData(masterCompany);
+    setViewMode('MASTER_REPORT');
+    setIsLoading(false);
+  };
+  
+  const handleManualEntryStart = async (company: Company) => {
+      setIsLoading(true);
+      const data = await getAssessmentData(company.templateId || 'default-standard');
+      setAssessmentData(data);
+      setManualEntryCompany(company);
+      setViewMode('MANUAL_ENTRY');
+      setIsLoading(false);
+  };
+
+  const handleManualEntrySave = async (response: ParticipantResponse) => {
+      if (manualEntryCompany) {
+          await addResponseToCompany(manualEntryCompany.id, response);
+          alert(`Saved response for ${response.firstName} ${response.lastName}`);
+          setManualEntryCompany(null);
+          setViewMode('DASHBOARD');
+      }
+  };
+
+  const handleBackToDashboard = () => {
+    // If user was viewing a public report, reload to go back to start/login
+    if (!user && viewMode === 'SINGLE_REPORT') {
+        window.location.href = '/';
+        return;
+    }
+
+    setReportCompany(null);
+    setBatchCompanies([]);
+    setMasterReportData(null);
+    setManualEntryCompany(null);
+    setViewMode('DASHBOARD');
+  };
+
+  if (isLoading) return <div className="min-h-screen bg-slate-900 text-slate-50 flex items-center justify-center"><LoadingSpinner message="Loading..." /></div>;
+
+  if (viewMode === 'PARTICIPANT' && assessmentData) {
     return (
-      <AdminDashboard
-        user={user as User}
-        onLogout={handleLogout}
-        onViewReport={onViewReport}
-        onBatchPrint={onBatchPrint}
-        onMasterReport={onMasterReport}
-        onManualEntry={onManualEntry}
-      />
+        <ParticipantView 
+            companyName={participantCompany} 
+            companyId={participantCompanyId} 
+            assessmentData={assessmentData} 
+        />
     );
   }
+  
+  if (viewMode === 'LOGIN') return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
 
-  if (viewMode === 'PARTICIPANT') {
-    return (
-      <ParticipantView
-        companyName={participantCompany}
-        companyId={participantCompanyId}
-        assessmentData={assessmentData}
-        onSubmit={(response) => handleParticipantSubmit(participantCompanyId, response, assessmentData?.templateId)}
-      />
-    );
+  if (viewMode === 'MANUAL_ENTRY' && assessmentData && manualEntryCompany) {
+      return (
+        <div className="relative">
+            <div className="absolute top-4 left-4 z-50"><button onClick={handleBackToDashboard} className="px-4 py-2 bg-slate-800 text-white rounded-lg shadow-lg font-bold text-xs hover:bg-slate-700">Cancel Entry</button></div>
+            <ParticipantView companyName={manualEntryCompany.name} assessmentData={assessmentData} onSubmit={handleManualEntrySave} />
+        </div>
+      );
   }
 
-  if (viewMode === 'SINGLE_REPORT' && reportCompany) {
-    return (
-      <TeamReport company={reportCompany} onBack={() => setViewMode('DASHBOARD')} />
-    );
-  }
+  if (viewMode === 'SINGLE_REPORT' && reportCompany && assessmentData) return <TeamReport companyName={reportCompany.name} assessmentData={assessmentData} allResponses={reportCompany.responses} onRestart={handleBackToDashboard} mode="single" />;
+  if (viewMode === 'BATCH_PRINT') return <BatchPrintView companies={batchCompanies} onBack={handleBackToDashboard} />;
+  if (viewMode === 'MASTER_REPORT' && masterReportData && assessmentData) return <TeamReport companyName={masterReportData.name} assessmentData={assessmentData} allResponses={masterReportData.responses} onRestart={handleBackToDashboard} mode="master" />;
 
-  if (viewMode === 'BATCH_PRINT') {
-    return <BatchPrintView companies={batchCompanies} onBack={() => setViewMode('DASHBOARD')} />;
-  }
-
-  if (viewMode === 'MASTER_REPORT' && masterReportData) {
-    return <TeamReport company={masterReportData} onBack={() => setViewMode('DASHBOARD')} masterMode={true} />;
-  }
-
-  if (viewMode === 'MANUAL_ENTRY' && manualEntryCompany) {
-    return <TeamReport company={manualEntryCompany} onBack={() => setViewMode('DASHBOARD')} manualEntryMode={true} />;
-  }
-
-  // Default fallback
-  return <div className="min-h-screen flex items-center justify-center"><LoadingSpinner /></div>;
+  if (user) return <div className="min-h-screen bg-slate-900 text-slate-50 font-sans selection:bg-blue-500/30"><AdminDashboard user={user} onLogout={handleLogout} onViewReport={handleViewReport} onBatchPrint={handleBatchPrint} onMasterReport={handleMasterReport} onManualEntry={handleManualEntryStart} /></div>;
+  
+  return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
 };
 
 export default App;

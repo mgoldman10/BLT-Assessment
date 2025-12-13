@@ -1,100 +1,107 @@
 import React, { useEffect, useState } from 'react';
 import { Company, AssessmentData } from '../types';
-import { getAssessmentData } from '../services/geminiService';
 import TeamReport from './TeamReport';
-import { ArrowLeft, Printer } from 'lucide-react';
+import { getAssessmentData } from '../services/geminiService';
+import { ArrowLeft, Printer, Loader2 } from 'lucide-react';
 
-export interface BatchPrintViewProps {
-  companies: Company[];
-  onDone: () => void; // Added: callback to return to dashboard or previous view
+interface BatchPrintViewProps {
+    companies: Company[];
+    onBack: () => void;
 }
 
-const BatchPrintView: React.FC<BatchPrintViewProps> = ({ companies, onDone }) => {
-  const [templatesByCompany, setTemplatesByCompany] = useState<Record<string, AssessmentData | null>>({});
-  const [isLoading, setIsLoading] = useState(true);
+const BatchPrintView: React.FC<BatchPrintViewProps> = ({ companies, onBack }) => {
+    const [loading, setLoading] = useState(true);
+    const [dataMap, setDataMap] = useState<Record<string, AssessmentData>>({});
 
-  useEffect(() => {
-    let mounted = true;
+    useEffect(() => {
+        const loadData = async () => {
+            setLoading(true);
+            const newDataMap: Record<string, AssessmentData> = {};
+            
+            await Promise.all(companies.map(async (company) => {
+                // Prioritize templateId, fallback to assessmentType (legacy mapping), then default
+                let tid = company.templateId;
+                if (!tid && company.assessmentType) {
+                    tid = company.assessmentType === 'strategy' ? 'default-strategy' : 'default-standard';
+                }
+                if (!tid) tid = 'default-standard';
 
-    const loadTemplates = async () => {
-      setIsLoading(true);
-      const map: Record<string, AssessmentData | null> = {};
-      for (const c of companies) {
-        try {
-          const tpl = await getAssessmentData(c.templateId || 'default-standard');
-          map[c.id] = tpl;
-        } catch (err) {
-          console.warn(`Failed to load template for company ${c.id}`, err);
-          map[c.id] = null;
-        }
-      }
-      if (mounted) {
-        setTemplatesByCompany(map);
-        setIsLoading(false);
-      }
+                try {
+                    const data = await getAssessmentData(tid);
+                    newDataMap[company.id] = data;
+                } catch (err) {
+                    console.error(`Error loading data for ${company.name}`, err);
+                }
+            }));
+            
+            setDataMap(newDataMap);
+            setLoading(false);
+        };
+        
+        loadData();
+    }, [companies]);
+    
+    const handlePrint = () => {
+        window.print();
     };
 
-    loadTemplates();
-    return () => { mounted = false; };
-  }, [companies]);
-
-  const handlePrint = () => {
-    // Give browser a tick to re-render if needed, then print
-    setTimeout(() => window.print(), 100);
-  };
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-brand-black text-white">
-        <div className="text-neutral-400">Preparing print view...</div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-brand-black text-white px-6 py-8">
-      <div className="max-w-6xl mx-auto mb-6 flex items-center justify-between gap-4">
-        <button onClick={onDone} className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg flex items-center gap-2">
-          <ArrowLeft className="w-4 h-4" /> Back
-        </button>
-
-        <div className="flex gap-2">
-          <button onClick={handlePrint} className="px-4 py-2 bg-brand-orange hover:bg-orange-600 rounded-lg flex items-center gap-2">
-            <Printer className="w-4 h-4" /> Print All
-          </button>
-          <button onClick={onDone} className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg">Done</button>
-        </div>
-      </div>
-
-      <div className="max-w-6xl mx-auto space-y-12">
-        {companies.map((c) => {
-          const tpl = templatesByCompany[c.id];
-          return (
-            <section key={c.id} className="bg-neutral-900 p-6 rounded-2xl border border-neutral-700 print:page-break-before break-inside-avoid">
-              <div className="mb-4">
-                <h3 className="text-xl font-bold text-white">{c.name}</h3>
-                <div className="text-sm text-brand-grey">{c.templateId || 'default-standard'} • {c.responses.length} Responses</div>
-              </div>
-
-              {tpl ? (
-                <TeamReport
-                  companyName={c.name}
-                  assessmentData={tpl}
-                  allResponses={c.responses}
-                  onRestart={() => { /* no-op in batch print view */ }}
-                  mode="batch"
-                />
-              ) : (
-                <div className="p-4 bg-neutral-800 rounded-lg text-brand-grey">
-                  Unable to load template for this company. Skipping.
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-slate-100 flex items-center justify-center">
+                <div className="flex flex-col items-center gap-4">
+                    <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+                    <p className="text-slate-600 font-medium">Preparing reports...</p>
                 </div>
-              )}
-            </section>
-          );
-        })}
-      </div>
-    </div>
-  );
+            </div>
+        );
+    }
+
+    return (
+        <div className="bg-slate-100 min-h-screen">
+            {/* No-Print Header Controls */}
+            <div className="bg-slate-900 text-white p-4 flex justify-between items-center no-print sticky top-0 z-50 shadow-md">
+                <div className="flex items-center gap-4">
+                    <button onClick={onBack} className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors">
+                        <ArrowLeft className="w-4 h-4" /> Back
+                    </button>
+                    <h2 className="font-bold">Batch Print Preview ({companies.length} Reports)</h2>
+                </div>
+                <button 
+                    onClick={handlePrint}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold flex items-center gap-2 transition-colors"
+                >
+                    <Printer className="w-4 h-4" /> Print All
+                </button>
+            </div>
+
+            <div className="print:p-0 p-8">
+                {companies.map((company, index) => {
+                    // Get loaded assessment data
+                    const companyAssessmentData = dataMap[company.id];
+
+                    if (!companyAssessmentData) return null;
+
+                    return (
+                        <div key={company.id}>
+                            <div className="bg-white shadow-xl print:shadow-none mb-8 print:mb-0 mx-auto max-w-6xl print:max-w-none">
+                                <TeamReport 
+                                    companyName={company.name}
+                                    assessmentData={companyAssessmentData}
+                                    allResponses={company.responses}
+                                    onRestart={() => {}} // Not used in batch mode
+                                    mode="batch"
+                                />
+                            </div>
+                            {/* Force page break between company reports */}
+                            {index < companies.length - 1 && (
+                                <div className="page-break block w-full h-0 border-none m-0 p-0"></div>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
 };
 
 export default BatchPrintView;

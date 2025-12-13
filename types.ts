@@ -32,14 +32,14 @@ export enum GameState {
 }
 
 export interface UserAnswers {
-  [questionId: string]: number | string;
+  [questionId: string]: number | string; 
 }
 
 export interface ParticipantResponse {
   id: string;
   firstName: string;
   lastName: string;
-  email?: string;
+  email?: string; 
   timestamp: number;
   answers: UserAnswers;
 }
@@ -47,17 +47,13 @@ export interface ParticipantResponse {
 export interface Company {
   id: string;
   name: string;
-  templateId: string;
-  tags?: string[];
+  templateId: string; 
+  tags?: string[]; 
   assessmentType?: 'standard' | 'strategy';
   createdAt: number;
   responses: ParticipantResponse[];
   lastActivity?: number;
   viewedAt?: number;
-
-  // new: stable public identifier used to compose shareable URLs
-  // optional here for backward-compatibility; createCompany will ensure it's set on creation
-  publicId?: string;
 }
 
 // NEW: Settings for automation

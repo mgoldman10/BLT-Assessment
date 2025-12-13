@@ -79,7 +79,23 @@ const App: React.FC = () => {
         if (normalized.startsWith('/r/')) {
           const token = decodeURIComponent(normalized.split('/r/')[1] || '');
           if (token) {
-            const company = await getCompanyByPublicId(token);
+            // Try lookup by publicId first (existing behavior)
+            let company = await getCompanyByPublicId(token);
+
+            // Fallback: if no company found by publicId, try resolving by internal company id
+            // This makes links that accidentally used internal ids work and is a defensive safety net.
+            if (!company) {
+              try {
+                company = await getCompanyById(token);
+                if (company) {
+                  console.warn(`/r/:token fallback used getCompanyById for token: ${token}`);
+                }
+              } catch (e) {
+                console.warn('Fallback getCompanyById failed for token:', token, e);
+                company = undefined;
+              }
+            }
+
             if (company) {
               const data = await getAssessmentData(company.templateId || 'default-standard');
               setAssessmentData(data);

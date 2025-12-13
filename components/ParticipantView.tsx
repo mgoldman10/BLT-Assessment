@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { AssessmentData, Category, UserAnswers, ParticipantResponse } from '../types';
 import GameBoard from './GameBoard';
 import QuestionModal from './QuestionModal';
-import { encodeResponse, addResponseToCompany, createCompany, getSettings } from '../services/storage'; 
+import { encodeResponse, addResponseToCompany, createCompany, getSettings, getCompanyById } from '../services/storage'; 
 import { triggerAutomationWebhook } from '../services/webhookService';
 import { Check, Copy, User, ArrowRight, Loader2, AlertCircle, Send, Mail, Building, Eye } from 'lucide-react';
 
@@ -77,8 +77,18 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyI
             await addResponseToCompany(finalCompanyId, response);
         }
 
-        // Generate Links
-        const reportLink = `${window.location.origin}/?mode=view_result&company=${encodeURIComponent(finalCompanyName)}`;
+        // Lookup the saved company and build the result link from publicId (fallback to id)
+        let token = finalCompanyId || '';
+        try {
+          if (finalCompanyId) {
+            const saved = await getCompanyById(finalCompanyId);
+            token = saved?.publicId || finalCompanyId;
+          }
+        } catch (e) {
+          console.warn("Could not resolve saved company for publicId", e);
+        }
+
+        const reportLink = `${window.location.origin}/r/${encodeURIComponent(token)}`;
         setResultViewLink(reportLink);
 
         try {
@@ -89,7 +99,7 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyI
                 if (assessmentData.topic.includes('Pre-Planning')) typeParam = 'Pre-Planning';
                 else if (assessmentData.topic.includes('35')) typeParam = 'BLT-Extended';
                 
-                const shareLink = `${window.location.origin}/?company=${encodeURIComponent(finalCompanyName)}&type=${typeParam}`;
+                const shareLink = `${window.location.origin}/r/${encodeURIComponent(token)}`;
 
                 await triggerAutomationWebhook(settings.webhookUrl, {
                     participant: response,
@@ -213,12 +223,12 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyI
                         {isPublicMode && (
                             <div>
                                 <label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Company / Team Name</label>
-                                <div className="relative"><Building className="absolute left-3 top-3 w-5 h-5 text-neutral-600" /><input type="text" required value={publicCompanyName} onChange={e => setPublicCompanyName(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none" placeholder="Acme Inc." /></div>
+                                <div className="relative"><Building className="absolute left-3 top-3 w-5 h-5 text-neutral-600" /><input type="text" required value={publicCompanyName} onChange={e => setPublicCompanyName(e.currentTarget.value)} className="pl-12 pr-4 py-3 w-full bg-brand-black border border-neutral-700 rounded-xl text-white" /></div>
                             </div>
                         )}
-                        <div><label className="block text-xs font-bold text-neutral-500 uppercase mb-1">First Name</label><div className="relative"><User className="absolute left-3 top-3 w-5 h-5 text-neutral-600" /><input type="text" required value={firstName} onChange={e => setFirstName(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none" placeholder="Jane" /></div></div>
-                        <div><label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Last Name</label><div className="relative"><User className="absolute left-3 top-3 w-5 h-5 text-neutral-600" /><input type="text" required value={lastName} onChange={e => setLastName(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none" placeholder="Doe" /></div></div>
-                        <div><label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Email Address</label><div className="relative"><Mail className="absolute left-3 top-3 w-5 h-5 text-neutral-600" /><input type="email" required value={email} onChange={e => setEmail(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none" placeholder="jane@company.com" /></div></div>
+                        <div><label className="block text-xs font-bold text-neutral-500 uppercase mb-1">First Name</label><div className="relative"><User className="absolute left-3 top-3 w-5 h-5 text-neutral-600" /><input type="text" required value={firstName} onChange={e => setFirstName(e.currentTarget.value)} className="pl-12 pr-4 py-3 w-full bg-brand-black border border-neutral-700 rounded-xl text-white" /></div></div>
+                        <div><label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Last Name</label><div className="relative"><User className="absolute left-3 top-3 w-5 h-5 text-neutral-600" /><input type="text" required value={lastName} onChange={e => setLastName(e.currentTarget.value)} className="pl-12 pr-4 py-3 w-full bg-brand-black border border-neutral-700 rounded-xl text-white" /></div></div>
+                        <div><label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Email Address</label><div className="relative"><Mail className="absolute left-3 top-3 w-5 h-5 text-neutral-600" /><input type="email" required value={email} onChange={e => setEmail(e.currentTarget.value)} className="pl-12 pr-4 py-3 w-full bg-brand-black border border-neutral-700 rounded-xl text-white" /></div></div>
                     </div>
                     <button type="submit" className="w-full py-4 bg-brand-orange hover:bg-orange-600 text-white font-bold rounded-xl transition-all shadow-lg flex items-center justify-center gap-2">Start Assessment <ArrowRight className="w-4 h-4" /></button>
                 </form>

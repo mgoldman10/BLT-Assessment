@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Company, UserAnswers, ParticipantResponse, AssessmentTemplate, Category, User, UserRole } from '../types';
-import { getCompanies, createCompany, saveCompany, deleteCompany, decodeResponse, saveLogo, getLogo, removeLogo, getTemplates, saveTemplate, deleteTemplate, addResponseToCompany, seedTemplates, getUsers, saveUser, updateUserPassword, deleteUser, getCompanyById, getSettings } from '../services/storage';
+import { getCompanies, createCompany, saveCompany, deleteCompany, decodeResponse, saveLogo, getLogo, removeLogo, getTemplates, saveTemplate, deleteTemplate, addResponseToCompany, seedTemplates, getUsers, saveUser, updateUserPassword, deleteUser, getCompanyById, getSettings, saveSettings } from '../services/storage';
 import { isConfigured } from '../services/firebaseConfig';
 import { getAssessmentData, generateAssessmentTemplate } from '../services/geminiService';
 import { logout, verifyPassword } from '../services/authService';
@@ -121,7 +121,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
   };
 
   const handleSaveWebhook = async () => {
+    // Persist settings via the provided helper and update local state
     await saveSettings({ webhookUrl: settings.webhookUrl });
+    // make sure local UI state is consistent (saveSettings may persist elsewhere)
+    setSettings(prev => ({ ...prev, webhookUrl: settings.webhookUrl }));
     alert("Webhook settings saved!");
   };
 

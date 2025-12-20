@@ -49,6 +49,7 @@ const App: React.FC = () => {
     };
 
     const companyName = getParam('company');
+    const companyIdParam = getParam('companyId');
     const mode = getParam('mode');
     const templateIdParam = getParam('template') || 'default-strategy';
     const typeParam = getParam('type'); // Used for fallback
@@ -63,9 +64,11 @@ const App: React.FC = () => {
           setViewMode('PARTICIPANT');
       }
       // Check for Invite/Participant Mode
-      else if (companyName) {
+      else if (companyName || companyIdParam) {
         const companies = await getCompanies();
-        const targetCompany = companies.find(c => c.name === companyName);
+        const targetCompany = companyIdParam
+          ? companies.find(c => c.id === companyIdParam)
+          : companies.find(c => c.name === companyName);
         
         if (targetCompany) {
              // Determine template ID to use
@@ -79,14 +82,14 @@ const App: React.FC = () => {
 
              const data = await getAssessmentData(finalTemplateId);
              setAssessmentData(data);
-             setParticipantCompany(companyName);
+             setParticipantCompany(targetCompany.name);
              setParticipantCompanyId(targetCompany.id); 
              setViewMode('PARTICIPANT');
         } else {
              // Company not found in DB, show default standard
              const data = await getAssessmentData('default-standard');
              setAssessmentData(data);
-             setParticipantCompany(companyName);
+             setParticipantCompany(companyName || '');
              setViewMode('PARTICIPANT');
         }
       } else {

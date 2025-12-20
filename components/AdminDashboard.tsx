@@ -377,6 +377,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
 
     const params = new URLSearchParams();
     params.set('company', company.name);
+    params.set('companyId', company.id);
     params.set('type', typeParam);
 
     return `${cleanPath}?${params.toString()}`;

@@ -364,7 +364,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
       });
       
       const rFirstName = firstNames[Math.floor(Math.random() * firstNames.length)];
-      const rLastName = lastNames[Math.floor(Math.random() * lastNames.length)];
+      const rLastName = lastNames[Math.floor(Math.random() * firstNames.length)];
 
       const response = {
           id: Date.now().toString(36) + Math.random().toString(36).substr(2),
@@ -639,138 +639,120 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
                         <option value="">All Tags</option>
                         {allUniqueTags.map(tag => (<option key={tag} value={tag}>{tag}</option>))}
                     </select>
-                    <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500 pointer-events-none" />
-                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-neutral-500 pointer-events-none" />
+                    <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-grey" />
                 </div>
-
-                <div className="relative group">
-                    <select value={sortOption} onChange={(e) => setSortOption(e.target.value as any)} className="appearance-none pl-9 pr-8 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-sm text-white focus:ring-1 focus:ring-brand-orange outline-none cursor-pointer hover:border-neutral-500">
+                <div className="flex items-center gap-2">
+                    <div className="relative">
+                        <input type="date" value={filterStartDate} onChange={(e) => setFilterStartDate(e.target.value)} className="pl-9 pr-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-sm text-white focus:ring-1 focus:ring-brand-orange outline-none hover:border-neutral-500" placeholder="Start" />
+                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-grey" />
+                    </div>
+                    <span className="text-brand-grey">-</span>
+                    <div className="relative">
+                         <input type="date" value={filterEndDate} onChange={(e) => setFilterEndDate(e.target.value)} className="pl-9 pr-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-sm text-white focus:ring-1 focus:ring-brand-orange outline-none hover:border-neutral-500" />
+                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-grey" />
+                    </div>
+                </div>
+                <div className="flex-1"></div>
+                <div className="flex items-center gap-2 text-sm text-brand-grey border-l border-neutral-700 pl-4">
+                    <ArrowUpDown className="w-4 h-4" /> Sort:
+                    <select value={sortOption} onChange={(e) => setSortOption(e.target.value as any)} className="appearance-none pl-3 pr-8 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-sm text-white focus:ring-1 focus:ring-brand-orange outline-none cursor-pointer hover:border-neutral-500">
                         <option value="date-desc">Newest First</option>
+                        <option value="activity">Last Activity</option>
                         <option value="date-asc">Oldest First</option>
-                        <option value="activity">Most Recent Activity</option>
                         <option value="name-asc">Name (A-Z)</option>
                         <option value="name-desc">Name (Z-A)</option>
                         <option value="resp-desc">Most Responses</option>
-                        <option value="resp-asc">Least Responses</option>
+                        <option value="resp-asc">Fewest Responses</option>
                     </select>
-                    <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500 pointer-events-none" />
-                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-neutral-500 pointer-events-none" />
                 </div>
-
-                <div className="relative group">
-                    <input type="date" value={filterStartDate} onChange={(e) => setFilterStartDate(e.target.value)} className="pl-9 pr-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-sm text-white focus:ring-1 focus:ring-brand-orange outline-none hover:border-neutral-500" />
-                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500 pointer-events-none" />
-                </div>
-
-                <div className="relative group">
-                    <input type="date" value={filterEndDate} onChange={(e) => setFilterEndDate(e.target.value)} className="pl-9 pr-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-sm text-white focus:ring-1 focus:ring-brand-orange outline-none hover:border-neutral-500" />
-                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500 pointer-events-none" />
-                </div>
-
-                <button onClick={resetFilters} className="text-brand-grey hover:text-white p-2 rounded-full hover:bg-neutral-700 transition-colors">
-                    <RotateCcw className="w-4 h-4" />
-                </button>
+                {(filterTag || filterStartDate || filterEndDate || searchTerm || sortOption !== 'date-desc' || filterTemplateIds.size > 0) && (
+                    <button onClick={resetFilters} className="p-2 text-brand-grey hover:text-white hover:bg-neutral-700 rounded-lg transition-colors" title="Reset Filters"><RotateCcw className="w-4 h-4" /></button>
+                )}
             </div>
           </div>
 
-          <div className="space-y-4">
-              <div className="flex items-center gap-3 text-sm text-brand-grey">
-                  <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-brand-orange"></div>
-                      Selected: {selectedIds.size}
-                  </div>
-                  <div>•</div>
-                  <div>Total: {filteredCompanies.length}</div>
-              </div>
-
+          {filteredCompanies.length === 0 ? (
+            <div className="text-center py-12 text-brand-grey bg-neutral-800/30 rounded-2xl border border-neutral-800 border-dashed">
+                {isLoading ? 'Loading...' : 'No assessments found.'}
+            </div>
+          ) : (
+            <div className="grid gap-4">
               {filteredCompanies.map(company => {
-                  const template = templates.find(t => t.id === company.templateId);
-                  return (
-                  <div key={company.id} className={`bg-neutral-800 border ${selectedIds.has(company.id) ? 'border-brand-orange' : 'border-neutral-700'} rounded-2xl p-6 shadow-lg transition-all hover:border-neutral-500`}>
-                      <div className="flex flex-col md:flex-row justify-between gap-6">
-                          <div className="flex items-start gap-4">
-                              <button onClick={() => toggleSelection(company.id)} className={`w-6 h-6 rounded-lg border flex items-center justify-center mt-1 ${selectedIds.has(company.id) ? 'bg-brand-orange border-brand-orange text-white' : 'border-neutral-600 text-neutral-600'}`}>
-                                  {selectedIds.has(company.id) && <Check className="w-4 h-4" />}
-                              </button>
-                              <div>
-                                  <h3 className="text-xl font-bold text-white mb-1">{company.name}</h3>
-                                  <div className="flex flex-wrap items-center gap-3 text-sm text-brand-grey">
-                                      <span>{company.responses.length} Responses</span>
-                                      <span className="text-neutral-600">•</span>
-                                      <span>{new Date(company.createdAt).toLocaleDateString()}</span>
-                                      {company.lastActivity && (
-                                        <>
-                                          <span className="text-neutral-600">•</span>
-                                          <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> Last Activity {new Date(company.lastActivity).toLocaleDateString()}</span>
-                                        </>
-                                      )}
-                                      {template && (
-                                        <>
-                                          <span className="text-neutral-600">•</span>
-                                          <span className="px-2 py-1 rounded text-[10px] uppercase font-bold bg-brand-black text-brand-grey border border-neutral-700">{template.name}</span>
-                                        </>
-                                      )}
-                                  </div>
-                                  {company.tags && company.tags.length > 0 && (
-                                      <div className="flex flex-wrap gap-2 mt-3">
-                                          {company.tags.map(tag => (
-                                              <span key={tag} className="px-2 py-1 bg-neutral-700 text-neutral-300 rounded-lg text-xs font-medium">{tag}</span>
-                                          ))}
-                                      </div>
-                                  )}
-                              </div>
-                          </div>
+                const template = templates.find(t => t.id === company.templateId);
+                const isUnread = company.lastActivity && (!company.viewedAt || company.lastActivity > company.viewedAt);
 
-                          <div className="flex flex-wrap gap-2 md:justify-end md:self-center">
-                              <button onClick={() => {
-                                  const share = getShareLink(company);
-                                  setShareLink(share);
-                                  setShowShareModal(true);
-                              }} className="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg text-sm font-medium flex items-center gap-2"><Share2 className="w-4 h-4" /> Share</button>
-                              
-                              <button onClick={() => onViewReport(company)} className="px-4 py-2 bg-brand-orange hover:bg-orange-600 text-white rounded-lg text-sm font-medium flex items-center gap-2"><BarChart2 className="w-4 h-4" /> Report</button>
-                              
-                              <button onClick={() => onManualEntry(company)} className="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg text-sm font-medium flex items-center gap-2"><Terminal className="w-4 h-4" /> Input</button>
-                              
-                              <button onClick={() => {
-                                  setManagingCompany(company);
-                                  setShowManageModal(true);
-                              }} className="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg text-sm font-medium flex items-center gap-2"><Layers className="w-4 h-4" /> Manage</button>
-                              
-                              <button onClick={() => {
-                                  setActiveCompanyId(company.id);
-                                  setShowImportModal(true);
-                              }} className="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg text-sm font-medium flex items-center gap-2"><UserPlus className="w-4 h-4" /> Add</button>
-                              
-                              <button onClick={() => handleSimulateData(company)} className="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg text-sm font-medium flex items-center gap-2"><Sparkles className="w-4 h-4" /> Simulate</button>
-                              
-                              <button onClick={() => startRenamingCompany(company)} className="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg text-sm font-medium flex items-center gap-2"><Edit3 className="w-4 h-4" /> Rename</button>
-                              
-                              <button onClick={() => setCompanyToDelete(company)} className="px-3 py-2 bg-neutral-700 hover:bg-red-900/50 text-brand-grey hover:text-red-400 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
+                return (
+                <div key={company.id} className={`bg-neutral-800 p-6 rounded-2xl border flex flex-col lg:flex-row gap-6 justify-between items-start lg:items-center transition-all shadow-sm ${selectedIds.has(company.id) ? 'border-brand-orange ring-1 ring-brand-orange/50 bg-orange-900/10' : 'border-neutral-700 hover:border-neutral-500'}`}>
+                  <div className="flex items-start gap-4 flex-1 w-full">
+                    <div className="flex flex-col items-center gap-2">
+                       <input type="checkbox" checked={selectedIds.has(company.id)} onChange={() => toggleSelection(company.id)} className="w-4 h-4 rounded border-neutral-600 text-brand-orange bg-brand-black flex-shrink-0 focus:ring-brand-orange" />
+                       {isUnread && <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]" title="New Activity"></div>}
+                    </div>
+                    <div className="flex-1">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-2">
+                          <h3 className="text-2xl font-bold text-white break-words">{company.name}</h3>
+                          <div className="flex items-center gap-2 px-3 py-1 bg-neutral-700/50 rounded-full border border-neutral-600 text-xs font-medium text-brand-grey w-fit">
+                              <Calendar className="w-3 h-3" /> {new Date(company.createdAt).toLocaleDateString()}
                           </div>
-                      </div>
+                          {template && (
+                            <span className="px-2 py-1 rounded text-[10px] uppercase font-bold bg-brand-black text-brand-grey border border-neutral-700">{template.name}</span>
+                          )}
+                          {company.lastActivity && (
+                             <span className="px-2 py-1 rounded text-[10px] uppercase font-bold bg-neutral-800 text-neutral-400 border border-neutral-700 flex items-center gap-1">
+                                <Clock className="w-3 h-3" /> Active: {new Date(company.lastActivity).toLocaleDateString()}
+                             </span>
+                          )}
+                        </div>
+                        
+                        {company.tags && company.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mb-3">
+                                {company.tags.map((tag, idx) => (
+                                    <span key={idx} className="flex items-center gap-1 px-2 py-0.5 bg-neutral-700 text-brand-grey border border-neutral-600 rounded text-xs font-medium"><Tag className="w-3 h-3" /> {tag}</span>
+                                ))}
+                            </div>
+                        )}
+                        
+                        <div className="flex flex-wrap items-center gap-4 text-sm text-brand-grey">
+                            <button onClick={() => { setManagingCompany(company); setShowManageModal(true); }} className={`flex items-center gap-2 hover:text-white transition-colors ${company.responses.length > 0 ? "text-brand-orange font-bold" : ""}`}>
+                                <Users className="w-4 h-4" />
+                                <span className="underline decoration-dotted">{company.responses.length} Response{company.responses.length !== 1 ? 's' : ''}</span>
+                            </button>
+                            <div className="w-1 h-1 bg-neutral-600 rounded-full"></div>
+                            <button onClick={() => { setShareLink(getShareLink(company)); setShowShareModal(true); }} className="flex items-center gap-2 text-brand-grey hover:text-white transition-colors"><Share2 className="w-4 h-4" /> Get Link 🔗</button>
+                        </div>
+                    </div>
                   </div>
-                  );
-              })}
-          </div>
-        </>
-      )}
 
-      {/* --- BULK ACTION BAR --- */}
-      {selectedIds.size > 0 && (
-          <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-neutral-900 border border-neutral-700 rounded-2xl shadow-2xl px-6 py-4 flex items-center gap-4 z-40 animate-in slide-in-from-bottom-8">
-              <div className="text-white font-bold text-sm">{selectedIds.size} selected</div>
-              <div className="h-6 w-px bg-neutral-700"></div>
-              <button onClick={handleResponseSummary} className="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"><FileBarChart className="w-4 h-4"/> Summary</button>
+                  <div className="flex flex-wrap gap-3 w-full lg:w-auto pl-8 lg:pl-0">
+                    <button onClick={() => handleSimulateData(company)} className="px-4 py-2 bg-neutral-900 hover:bg-neutral-950 text-brand-grey border border-neutral-700 rounded-lg text-sm font-medium transition-colors"><Terminal className="w-4 h-4 inline mr-2" /> Sim</button>
+                    <button onClick={() => { setActiveCompanyId(company.id); setShowImportModal(true); }} className="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg text-sm font-medium transition-colors"><UserPlus className="w-4 h-4 inline mr-2" /> Input</button>
+                    <button onClick={() => onViewReport(company)} disabled={company.responses.length === 0} className="px-4 py-2 bg-brand-orange hover:bg-orange-600 disabled:bg-neutral-700 disabled:text-neutral-500 text-white rounded-lg text-sm font-bold transition-colors relative">
+                        <BarChart2 className="w-4 h-4 inline mr-2" /> Report
+                        {isUnread && <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-neutral-800"></span>}
+                    </button>
+                    <button onClick={() => startRenamingCompany(company)} className="px-3 py-2 text-brand-grey hover:text-brand-orange transition-colors border border-transparent hover:border-orange-900/30 rounded-lg" title="Edit Name"><Edit3 className="w-5 h-5" /></button>
+                    <button onClick={() => setCompanyToDelete(company)} className="px-3 py-2 text-brand-grey hover:text-red-400 transition-colors border border-transparent hover:border-red-900/30 rounded-lg" title="Delete"><Trash2 className="w-5 h-5" /></button>
+                  </div>
+                </div>
+              )})}
+            </div>
+          )}
+
+          <div className={`fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-neutral-900 border border-neutral-700 shadow-2xl rounded-full px-6 py-3 flex items-center gap-4 transition-all duration-300 z-40 ${selectedIds.size > 0 ? 'translate-y-0 opacity-100' : 'translate-y-24 opacity-0'}`}>
+              <div className="text-white font-bold text-sm border-r border-neutral-700 pr-4 mr-1">{selectedIds.size} Selected</div>
               <button onClick={() => {
-                  const selected = companies.filter(c => selectedIds.has(c.id));
-                  if (selected.length === 0) return;
-                  const links = selected.map(c => getShareLink(c)).join('\n');
-                  setBulkLinksText(links);
-                  setShowBulkLinksModal(true);
-              }} className="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"><Copy className="w-4 h-4"/> Get Links</button>
-              <button onClick={() => onBatchPrint(companies.filter(c => selectedIds.has(c.id)))} className="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"><Printer className="w-4 h-4"/> Batch Print</button>
-              <button onClick={handleMasterClick} className="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"><Layers className="w-4 h-4"/> Master</button>
+                   const selected = companies.filter(c => selectedIds.has(c.id));
+                   const text = selected.map(c => `${c.name}\n${getShareLink(c)}`).join('\n\n');
+                   setBulkLinksText(text); setShowBulkLinksModal(true);
+              }} className="flex items-center gap-2 text-brand-grey hover:text-white hover:bg-neutral-800 px-3 py-1.5 rounded-lg text-sm font-medium"><Copy className="w-4 h-4"/> Links</button>
+              <button onClick={() => {
+                   const selected = companies.filter(c => selectedIds.has(c.id));
+                   if(selected.length) onBatchPrint(selected);
+              }} className="flex items-center gap-2 text-brand-grey hover:text-white hover:bg-neutral-800 px-3 py-1.5 rounded-lg text-sm font-medium"><Printer className="w-4 h-4"/> Print</button>
+              <button onClick={handleMasterClick} className="flex items-center gap-2 bg-brand-orange hover:bg-orange-600 text-white px-4 py-1.5 rounded-full text-sm font-bold shadow-lg"><Layers className="w-4 h-4"/> Group Report</button>
+              
+              {/* NEW SUMMARY BUTTON */}
+              <button onClick={handleResponseSummary} className="flex items-center gap-2 text-brand-grey hover:text-white hover:bg-neutral-800 px-3 py-1.5 rounded-lg text-sm font-medium"><FileBarChart className="w-4 h-4"/> Summary</button>
               
               <button onClick={() => setSelectedIds(new Set())} className="ml-2 p-1 hover:bg-neutral-800 rounded-full text-brand-grey hover:text-white"><X className="w-4 h-4" /></button>
           </div>
@@ -1146,3 +1128,4 @@ const TemplateEditor: React.FC<{ template: AssessmentTemplate, onSave: (t: Asses
 };
 
 export default AdminDashboard;
+

@@ -273,6 +273,30 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
         setIsGeneratingAI(false);
     }
   };
+ const handleDuplicateTemplate = async (template: AssessmentTemplate) => {
+    const timestamp = Date.now();
+    const uniqueSuffix = `${timestamp.toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const duplicatedCategories = template.categories.map((category, categoryIndex) => ({
+      ...category,
+      id: `copy-${uniqueSuffix}-cat-${categoryIndex}`,
+      questions: category.questions.map((question, questionIndex) => ({
+        ...question,
+        id: `copy-${uniqueSuffix}-q-${categoryIndex}-${questionIndex}`
+      }))
+    }));
+
+    const newTemplate: AssessmentTemplate = {
+      id: `copy-${uniqueSuffix}`,
+      name: `${template.name} (Copy)`,
+      categories: duplicatedCategories,
+      createdAt: timestamp,
+      updatedAt: timestamp
+    };
+
+    await saveTemplate(newTemplate);
+    await refreshData();
+    setEditingTemplate(newTemplate);
+  };
 
   const handleSaveTemplate = async (template: AssessmentTemplate) => {
     await saveTemplate(template);

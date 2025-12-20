@@ -449,7 +449,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
             case 'date-desc': return b.createdAt - a.createdAt;
             case 'date-asc': return a.createdAt - b.createdAt;
             case 'name-asc': return a.name.localeCompare(b.name);
-            case 'name-desc': return a.name.localeCompare(b.name);
+            case 'name-desc': return b.name.localeCompare(a.name);
             case 'resp-desc': return b.responses.length - a.responses.length;
             case 'resp-asc': return a.responses.length - b.responses.length;
             default: return (b.lastActivity || 0) - (a.lastActivity || 0);
@@ -1102,10 +1102,52 @@ const TemplateEditor: React.FC<{
   onCancel: () => void;
   onDuplicate: (t: AssessmentTemplate) => void;
 }> = ({ template, onSave, onCancel, onDuplicate }) => {
-  const [data, setData] = useState<AssessmentTemplate>(template);
-  const handleCatNameChange = (catIdx: number, val: string) => { const newCats = [...data.categories]; newCats[catIdx].name = val; setData({ ...data, categories: newCats }); };
-  const handleQChange = (catIdx: number, qIdx: number, val: string) => { const newCats = [...data.categories]; newCats[catIdx].questions[qIdx].text = val; setData({ ...data, categories: newCats }); };
-  const addQuestion = (catIdx: number) => { const newCats = [...data.categories]; const newQId = `q-${catIdx}-${Date.now()}`; newCats[catIdx].questions.push({ id: newQId, text: "New Question" }); setData({ ...data, categories: newCats }); };
+  const shouldAssumeLongText = useMemo(() => {
+    const totalQuestions = template.categories.reduce((count, category) => count + category.questions.length, 0);
+    return totalQuestions !== 30 && totalQuestions !== 35;
+  }, [template]);
+
+  const enforceLongTextQuestions = (current: AssessmentTemplate) => {
+    if (!shouldAssumeLongText) return current;
+    return {
+      ...current,
+      categories: current.categories.map(category => ({
+        ...category,
+        questions: category.questions.map(question => ({
+          ...question,
+          type: 'text'
+        }))
+      }))
+    };
+  };
+
+  const [data, setData] = useState<AssessmentTemplate>(() => enforceLongTextQuestions(template));
+
+  useEffect(() => {
+    setData(enforceLongTextQuestions(template));
+  }, [template, shouldAssumeLongText]);
+
+  const handleCatNameChange = (catIdx: number, val: string) => {
+    const newCats = [...data.categories];
+    newCats[catIdx].name = val;
+    setData({ ...data, categories: newCats });
+  };
+  const handleQChange = (catIdx: number, qIdx: number, val: string) => {
+    const newCats = [...data.categories];
+    newCats[catIdx].questions[qIdx].text = val;
+    if (shouldAssumeLongText) newCats[catIdx].questions[qIdx].type = 'text';
+    setData({ ...data, categories: newCats });
+  };
+  const addQuestion = (catIdx: number) => {
+    const newCats = [...data.categories];
+    const newQId = `q-${catIdx}-${Date.now()}`;
+    newCats[catIdx].questions.push({
+      id: newQId,
+      text: "New Question",
+      ...(shouldAssumeLongText ? { type: 'text' } : {})
+    });
+    setData({ ...data, categories: newCats });
+  };
   const removeQuestion = (catIdx: number, qIdx: number) => { const newCats = [...data.categories]; newCats[catIdx].questions.splice(qIdx, 1); setData({ ...data, categories: newCats }); };
   const addCategory = () => { const newCatId = `cat-${Date.now()}`; setData({ ...data, categories: [...data.categories, { id: newCatId, name: "New Category", questions: [{ id: `q-${newCatId}-0`, text: "New Question" }] }] }); };
   const removeCategory = (catIdx: number) => { const newCats = [...data.categories]; newCats.splice(catIdx, 1); setData({...data, categories: newCats}); };
@@ -1117,10 +1159,10 @@ const TemplateEditor: React.FC<{
           <input className="bg-transparent text-2xl font-bold text-white border-b border-transparent focus:border-brand-orange outline-none" value={data.name} onChange={e => setData({...data, name: e.target.value})} />
           <div className="flex gap-2">
             <button onClick={onCancel} className="px-4 py-2 text-neutral-400 hover:text-white">Cancel</button>
-            <button onClick={() => onDuplicate(data)} className="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg font-bold flex items-center gap-2">
+            <button onClick={() => onDuplicate(enforceLongTextQuestions(data))} className="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg font-bold flex items-center gap-2">
               <Copy className="w-4 h-4" /> Duplicate
             </button>
-            <button onClick={() => onSave(data)} className="px-6 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg font-bold">Save Template</button>
+            <button onClick={() => onSave(enforceLongTextQuestions(data))} className="px-6 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg font-bold">Save Template</button>
           </div>
         </div>
         <div className="flex-1 overflow-y-auto p-6 space-y-8">
@@ -1146,5 +1188,4 @@ const TemplateEditor: React.FC<{
 };
 
 export default AdminDashboard;
-
 

@@ -364,7 +364,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
       });
       
       const rFirstName = firstNames[Math.floor(Math.random() * firstNames.length)];
-      const rLastName = lastNames[Math.floor(Math.random() * firstNames.length)];
+      const rLastName = lastNames[Math.floor(Math.random() * lastNames.length)];
 
       const response = {
           id: Date.now().toString(36) + Math.random().toString(36).substr(2),
@@ -449,7 +449,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
             case 'date-desc': return b.createdAt - a.createdAt;
             case 'date-asc': return a.createdAt - b.createdAt;
             case 'name-asc': return a.name.localeCompare(b.name);
-            case 'name-desc': return b.name.localeCompare(a.name);
+            case 'name-desc': return a.name.localeCompare(b.name);
             case 'resp-desc': return b.responses.length - a.responses.length;
             case 'resp-asc': return a.responses.length - b.responses.length;
             default: return (b.lastActivity || 0) - (a.lastActivity || 0);
@@ -916,7 +916,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
           </div>
       )}
 
-      {editingTemplate && <TemplateEditor template={editingTemplate} onSave={handleSaveTemplate} onCancel={() => setEditingTemplate(null)} />}
+      {editingTemplate && (
+        <TemplateEditor
+          template={editingTemplate}
+          onSave={handleSaveTemplate}
+          onCancel={() => setEditingTemplate(null)}
+          onDuplicate={handleDuplicateTemplate}
+        />
+      )}
 
       {renamingCompany && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-black/90 backdrop-blur-sm animate-in fade-in">
@@ -1089,7 +1096,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
 };
 
 // Simple Template Editor wrapper remains largely the same but passed props
-const TemplateEditor: React.FC<{ template: AssessmentTemplate, onSave: (t: AssessmentTemplate) => void, onCancel: () => void }> = ({ template, onSave, onCancel }) => {
+const TemplateEditor: React.FC<{
+  template: AssessmentTemplate;
+  onSave: (t: AssessmentTemplate) => void;
+  onCancel: () => void;
+  onDuplicate: (t: AssessmentTemplate) => void;
+}> = ({ template, onSave, onCancel, onDuplicate }) => {
   const [data, setData] = useState<AssessmentTemplate>(template);
   const handleCatNameChange = (catIdx: number, val: string) => { const newCats = [...data.categories]; newCats[catIdx].name = val; setData({ ...data, categories: newCats }); };
   const handleQChange = (catIdx: number, qIdx: number, val: string) => { const newCats = [...data.categories]; newCats[catIdx].questions[qIdx].text = val; setData({ ...data, categories: newCats }); };
@@ -1103,7 +1115,13 @@ const TemplateEditor: React.FC<{ template: AssessmentTemplate, onSave: (t: Asses
       <div className="bg-neutral-900 w-full max-w-4xl h-[90vh] rounded-2xl border border-neutral-700 flex flex-col shadow-2xl">
         <div className="p-6 border-b border-neutral-700 flex justify-between items-center">
           <input className="bg-transparent text-2xl font-bold text-white border-b border-transparent focus:border-brand-orange outline-none" value={data.name} onChange={e => setData({...data, name: e.target.value})} />
-          <div className="flex gap-2"><button onClick={onCancel} className="px-4 py-2 text-neutral-400 hover:text-white">Cancel</button><button onClick={() => onSave(data)} className="px-6 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg font-bold">Save Template</button></div>
+          <div className="flex gap-2">
+            <button onClick={onCancel} className="px-4 py-2 text-neutral-400 hover:text-white">Cancel</button>
+            <button onClick={() => onDuplicate(data)} className="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg font-bold flex items-center gap-2">
+              <Copy className="w-4 h-4" /> Duplicate
+            </button>
+            <button onClick={() => onSave(data)} className="px-6 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg font-bold">Save Template</button>
+          </div>
         </div>
         <div className="flex-1 overflow-y-auto p-6 space-y-8">
            {data.categories.map((cat, catIdx) => (
@@ -1128,4 +1146,5 @@ const TemplateEditor: React.FC<{ template: AssessmentTemplate, onSave: (t: Asses
 };
 
 export default AdminDashboard;
+
 

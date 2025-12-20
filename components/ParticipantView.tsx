@@ -78,7 +78,11 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyI
         }
 
         // Generate Links
-        const reportLink = `${window.location.origin}/?mode=view_result&company=${encodeURIComponent(finalCompanyName)}`;
+        const reportParams = new URLSearchParams();
+        reportParams.set('mode', 'view_result');
+        reportParams.set('company', finalCompanyName);
+        if (finalCompanyId) reportParams.set('companyId', finalCompanyId);
+        const reportLink = `${window.location.origin}/?${reportParams.toString()}`;
         setResultViewLink(reportLink);
 
         try {
@@ -89,7 +93,11 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyI
                 if (assessmentData.topic.includes('Pre-Planning')) typeParam = 'Pre-Planning';
                 else if (assessmentData.topic.includes('35')) typeParam = 'BLT-Extended';
                 
-                const shareLink = `${window.location.origin}/?company=${encodeURIComponent(finalCompanyName)}&type=${typeParam}`;
+                const shareParams = new URLSearchParams();
+                shareParams.set('company', finalCompanyName);
+                shareParams.set('type', typeParam);
+                if (finalCompanyId) shareParams.set('companyId', finalCompanyId);
+                const shareLink = `${window.location.origin}/?${shareParams.toString()}`;
 
                 await triggerAutomationWebhook(settings.webhookUrl, {
                     participant: response,
@@ -273,3 +281,4 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyI
 };
 
 export default ParticipantView;
+

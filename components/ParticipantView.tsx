@@ -282,3 +282,4 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyI
 
 export default ParticipantView;
 
+

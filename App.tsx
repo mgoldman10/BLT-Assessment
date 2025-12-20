@@ -54,6 +54,13 @@ const App: React.FC = () => {
     const templateIdParam = getParam('template') || 'default-strategy';
     const typeParam = getParam('type'); // Used for fallback
 
+    const resolveTemplateIdForType = (type: string | null) => {
+      if (!type) return null;
+      if (type === 'Pre-Planning') return 'default-coaching';
+      if (type === 'BLT-Extended') return 'default-strategy';
+      return null;
+    };
+
     const loadData = async () => {
       // Check for Public/Embed Mode
       if (mode === 'public') {
@@ -66,9 +73,16 @@ const App: React.FC = () => {
       // Check for Invite/Participant Mode
       else if (companyName || companyIdParam) {
         const companies = await getCompanies();
+        const normalizedCompanyName = companyName?.toLowerCase().trim();
+        const namedCompanies = normalizedCompanyName
+          ? companies.filter(c => c.name.toLowerCase().trim() === normalizedCompanyName)
+          : [];
+        const targetTemplateId = resolveTemplateIdForType(typeParam);
         const targetCompany = companyIdParam
           ? companies.find(c => c.id === companyIdParam)
-          : companies.find(c => c.name === companyName);
+          : targetTemplateId
+            ? namedCompanies.find(c => c.templateId === targetTemplateId)
+            : namedCompanies[0];
         
         if (targetCompany) {
              // Determine template ID to use
@@ -76,8 +90,8 @@ const App: React.FC = () => {
              
              // Fallback Logic: If templateId seems wrong/missing, check URL type param
              if (!targetCompany.templateId && typeParam) {
-                 if (typeParam === 'Pre-Planning') finalTemplateId = 'default-coaching';
-                 else if (typeParam === 'BLT-Extended') finalTemplateId = 'default-strategy';
+                 const fallbackTemplateId = resolveTemplateIdForType(typeParam);
+                 if (fallbackTemplateId) finalTemplateId = fallbackTemplateId;
              }
 
              const data = await getAssessmentData(finalTemplateId);
@@ -222,3 +236,4 @@ const App: React.FC = () => {
 };
 
 export default App;
+

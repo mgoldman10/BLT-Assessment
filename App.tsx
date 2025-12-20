@@ -70,6 +70,29 @@ const App: React.FC = () => {
           setParticipantCompanyId('PUBLIC_NEW'); 
           setViewMode('PARTICIPANT');
       }
+      // Check for Result View Mode
+      else if (mode === 'view_result') {
+        const companies = await getCompanies();
+        const normalizedCompanyName = companyName?.toLowerCase().trim();
+        const namedCompanies = normalizedCompanyName
+          ? companies.filter(c => c.name.toLowerCase().trim() === normalizedCompanyName)
+          : [];
+        const targetTemplateId = resolveTemplateIdForType(typeParam);
+        const targetCompany = companyIdParam
+          ? companies.find(c => c.id === companyIdParam)
+          : targetTemplateId
+            ? namedCompanies.find(c => c.templateId === targetTemplateId)
+            : namedCompanies[0];
+
+        if (targetCompany) {
+          const data = await getAssessmentData(targetCompany.templateId || 'default-standard');
+          setAssessmentData(data);
+          setReportCompany(targetCompany);
+          setViewMode('SINGLE_REPORT');
+        } else {
+          setViewMode('LOGIN');
+        }
+      }
       // Check for Invite/Participant Mode
       else if (companyName || companyIdParam) {
         const companies = await getCompanies();

@@ -364,7 +364,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
       });
       
       const rFirstName = firstNames[Math.floor(Math.random() * firstNames.length)];
-      const rLastName = lastNames[Math.floor(Math.random() * lastNames.length)];
+      const rLastName = lastNames[Math.floor(Math.random() * firstNames.length)];
 
       const response = {
           id: Date.now().toString(36) + Math.random().toString(36).substr(2),
@@ -1107,7 +1107,7 @@ const TemplateEditor: React.FC<{
     return totalQuestions !== 30 && totalQuestions !== 35;
   }, [template]);
 
-  const enforceLongTextQuestions = (current: AssessmentTemplate) => {
+  const enforceLongTextQuestions = (current: AssessmentTemplate): AssessmentTemplate => {
     if (!shouldAssumeLongText) return current;
     return {
       ...current,
@@ -1115,7 +1115,7 @@ const TemplateEditor: React.FC<{
         ...category,
         questions: category.questions.map(question => ({
           ...question,
-          type: 'text'
+          type: 'text' as const
         }))
       }))
     };
@@ -1144,7 +1144,7 @@ const TemplateEditor: React.FC<{
     newCats[catIdx].questions.push({
       id: newQId,
       text: "New Question",
-      ...(shouldAssumeLongText ? { type: 'text' } : {})
+      ...(shouldAssumeLongText ? { type: 'text' as const } : {})
     });
     setData({ ...data, categories: newCats });
   };

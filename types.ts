@@ -10,6 +10,7 @@ export interface Category {
   id: string;
   name: string;
   questions: Question[];
+  archived?: boolean;
 }
 
 export interface AssessmentData {
@@ -58,6 +59,7 @@ export interface Company {
   responses: ParticipantResponse[];
   lastActivity?: number;
   viewedAt?: number;
+  archived?: boolean;
 }
 
 // NEW: Settings for automation

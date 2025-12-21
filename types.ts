@@ -21,6 +21,7 @@ export interface AssessmentTemplate {
   categories: Category[];
   createdAt: number;
   updatedAt: number;
+  assessmentType?: 'blt' | 'long-form';
 }
 
 export enum GameState {

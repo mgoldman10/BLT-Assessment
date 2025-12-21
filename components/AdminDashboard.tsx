@@ -474,7 +474,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
             case 'date-desc': return b.createdAt - a.createdAt;
             case 'date-asc': return a.createdAt - b.createdAt;
             case 'name-asc': return a.name.localeCompare(b.name);
-            case 'name-desc': return b.name.localeCompare(a.name);
+            case 'name-desc': return a.name.localeCompare(b.name);
             case 'resp-desc': return b.responses.length - a.responses.length;
             case 'resp-asc': return a.responses.length - b.responses.length;
             default: return (b.lastActivity || 0) - (a.lastActivity || 0);

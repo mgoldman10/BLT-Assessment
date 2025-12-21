@@ -528,90 +528,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
     setShowImportModal(true);
   };
 
-  const handleBulkDelete = async () => {
-      if (!selectedIds.size) return;
-      if (!window.confirm(`Are you sure you want to delete ${selectedIds.size} assessment(s)?`)) return;
-      for (const id of selectedIds) {
-          await deleteCompany(id);
-      }
-      await refreshData();
-      setSelectedIds(new Set());
+  const handleSelectTemplateType = (assessmentType: AssessmentTemplate['assessmentType']) => {
+    const matchingTemplate = templates.find(t => resolveAssessmentType(t) === assessmentType);
+    if (matchingTemplate) {
+      setNewCompanyTemplateId(matchingTemplate.id);
+    }
   };
 
-  const handleBulkArchive = async () => {
-      if (!selectedIds.size) return;
-      for (const id of selectedIds) {
-          const company = companies.find(c => c.id === id);
-          if (company) await saveCompany({ ...company, archived: true });
-      }
-      await refreshData();
-      setSelectedIds(new Set());
-  };
-
-  const handleBulkUnarchive = async () => {
-      if (!selectedIds.size) return;
-      for (const id of selectedIds) {
-          const company = companies.find(c => c.id === id);
-          if (company) await saveCompany({ ...company, archived: false });
-      }
-      await refreshData();
-      setSelectedIds(new Set());
-  };
-
-  const handleViewReport = (company: Company) => {
-      onViewReport(company);
-  };
-
-  const handleBulkViewReport = () => {
-      const selected = companies.filter(c => selectedIds.has(c.id));
-      if (selected.length === 1) {
-          onViewReport(selected[0]);
-      } else {
-          alert("Please select exactly one assessment to view.");
-      }
-  };
-
-  const handleBulkPrint = () => {
-      const selected = companies.filter(c => selectedIds.has(c.id));
-      if (selected.length) onBatchPrint(selected);
-  };
-
-  const handleBulkShare = () => {
-      const selected = companies.filter(c => selectedIds.has(c.id));
-      if (!selected.length) return;
-      const text = selected.map(c => `${c.name}\n${getShareLink(c)}`).join('\n\n');
-      setBulkLinksText(text);
-      setShowBulkLinksModal(true);
-  };
-
-  const handleOpenSettings = async () => {
-      const s = await getSettings();
-      setSettings(s || {});
-      setCustomLogo(s?.logoUrl || null);
-      setShowSettingsModal(true);
-  };
-
-  const handleResendInvite = async (u: User) => {
-      if (!u.password) return;
-      await sendUserInvite(u.name, u.email, u.role, u.password);
-      alert("Invite re-sent.");
-  };
-
-  const handleEditUser = (u: User) => {
-      setEditingUser(u);
-      setNewUserName(u.name);
-      setNewUserEmail(u.email);
-      setNewUserRole(u.role);
-      setNewUserPassword(u.password || '');
-      setShowUserModal(true);
-  };
-
-  const handleDuplicateTemplateClick = (t: AssessmentTemplate) => {
-      handleDuplicateTemplate(t);
-  };
-
-  const handleEditTemplateClick = (t: AssessmentTemplate) => {
-      setEditingTemplate(t);
+  const getUniqueTemplates = () => {
+    const seen = new Set<string>();
+    return templates.filter(t => {
+      if (seen.has(t.id)) return false;
+      seen.add(t.id);
+      return true;
+    });
   };
 
   const renderCompaniesTab = () => (
@@ -640,7 +570,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
             <div>
               <label className="block text-sm font-medium text-brand-grey mb-2">Select Template</label>
               <select value={newCompanyTemplateId} onChange={(e) => setNewCompanyTemplateId(e.target.value)} className="w-full px-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none">
-                {templates.map(t => (
+                {getUniqueTemplates().map(t => (
                   <option key={t.id} value={t.id}>{t.name} ({t.categories.reduce((a,c) => a + c.questions.length, 0)} questions)</option>
                 ))}
               </select>
@@ -804,28 +734,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
         </div>
         <div className="flex gap-3 flex-wrap">
             <button 
-                onClick={handleOpenSettings}
+                onClick={() => setShowSettingsModal(true)}
                 className="px-4 py-3 bg-neutral-800 hover:bg-neutral-700 text-white rounded-xl font-bold flex items-center gap-2 transition-colors border border-neutral-700"
             >
                 <Settings className="w-5 h-5" /> Settings
-            </button>
-            <button 
-                onClick={handleBulkShare}
-                className="px-4 py-3 bg-neutral-800 hover:bg-neutral-700 text-white rounded-xl font-bold flex items-center gap-2 transition-colors border border-neutral-700"
-            >
-                <Share2 className="w-5 h-5" /> Share Links
-            </button>
-            <button 
-                onClick={handleBulkPrint}
-                className="px-4 py-3 bg-neutral-800 hover:bg-neutral-700 text-white rounded-xl font-bold flex items-center gap-2 transition-colors border border-neutral-700"
-            >
-                <Printer className="w-5 h-5" /> Print
-            </button>
-            <button 
-                onClick={handleBulkViewReport}
-                className="px-4 py-3 bg-neutral-800 hover:bg-neutral-700 text-white rounded-xl font-bold flex items-center gap-2 transition-colors border border-neutral-700"
-            >
-                <BarChart2 className="w-5 h-5" /> View Report
             </button>
             <button 
                 onClick={() => setIsCreating(true)}
@@ -887,8 +799,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
                     <div className="text-sm text-brand-grey mb-4">{t.categories.length} Categories • {t.categories.reduce((acc, cat) => acc + cat.questions.length, 0)} Questions</div>
                   </div>
                   <div className="flex gap-2 mt-4 pt-4 border-t border-neutral-700">
-                     <button onClick={() => handleEditTemplateClick(t)} className="flex-1 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg font-medium text-sm transition-colors flex items-center justify-center gap-2"><Edit3 className="w-4 h-4" /> Edit</button>
-                     <button onClick={() => handleDuplicateTemplateClick(t)} className="flex-1 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg font-medium text-sm transition-colors flex items-center justify-center gap-2"><Copy className="w-4 h-4" /> Duplicate</button>
+                     <button onClick={() => setEditingTemplate(t)} className="flex-1 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg font-medium text-sm transition-colors flex items-center justify-center gap-2"><Edit3 className="w-4 h-4" /> Edit</button>
+                     <button onClick={() => handleDuplicateTemplate(t)} className="flex-1 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg font-medium text-sm transition-colors flex items-center justify-center gap-2"><Copy className="w-4 h-4" /> Duplicate</button>
                      <button onClick={() => setTemplateToDelete(t)} className="px-3 py-2 bg-neutral-700 hover:bg-red-900/50 text-brand-grey hover:text-red-400 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
                   </div>
                </div>
@@ -931,8 +843,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
                                       </span>
                                   </td>
                                   <td className="p-4 text-right flex justify-end gap-2">
-                                      <button onClick={() => handleEditUser(u)} className="p-2 text-brand-grey hover:text-white bg-neutral-900 rounded-lg border border-neutral-700 hover:border-neutral-500"><Edit3 className="w-4 h-4" /></button>
-                                      <button onClick={() => handleResendInvite(u)} className="p-2 text-brand-grey hover:text-white bg-neutral-900 rounded-lg border border-neutral-700 hover:border-neutral-500"><Mail className="w-4 h-4" /></button>
+                                      <button onClick={() => {
+                                          setEditingUser(u);
+                                          setNewUserName(u.name); setNewUserEmail(u.email); setNewUserRole(u.role); setNewUserPassword(u.password || '');
+                                          setShowUserModal(true);
+                                      }} className="p-2 text-brand-grey hover:text-white bg-neutral-900 rounded-lg border border-neutral-700 hover:border-neutral-500"><Edit3 className="w-4 h-4" /></button>
                                       {u.role !== 'SUPER_ADMIN' && (
                                           <button onClick={() => setUserToDelete(u)} className="p-2 text-brand-grey hover:text-red-400 bg-neutral-900 rounded-lg border border-neutral-700 hover:border-red-900/50"><Trash2 className="w-4 h-4" /></button>
                                       )}

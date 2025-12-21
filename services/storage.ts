@@ -321,3 +321,128 @@ export const saveUser = async (user: User): Promise<void> => {
 
 export const updateUserPassword = async (userId: string, newPassword: string): Promise<void> => {
     if (isConfigured() && db) {
+        const ref = doc(db, USERS_COL, userId);
+        await updateDoc(ref, { password: newPassword });
+        return;
+    }
+    const local = getLocalData<User>(LOCAL_USERS_KEY);
+    const idx = local.findIndex(u => u.id === userId);
+    if (idx >= 0) {
+        local[idx].password = newPassword;
+        setLocalData(LOCAL_USERS_KEY, local);
+    }
+};
+
+export const deleteUser = async (id: string): Promise<void> => {
+    if (isConfigured() && db) {
+        await deleteDoc(doc(db, USERS_COL, id));
+        return;
+    }
+    const local = getLocalData<User>(LOCAL_USERS_KEY);
+    setLocalData(LOCAL_USERS_KEY, local.filter(u => u.id !== id));
+};
+
+// --- Company Management ---
+
+export const getCompanies = async (): Promise<Company[]> => {
+    if (isConfigured() && db) {
+        try {
+            const snap = await getDocs(collection(db, COMPANIES_COL));
+            return snap.docs.map(d => d.data() as Company);
+        } catch (e) {
+            return [];
+        }
+    }
+    return getLocalData<Company>(LOCAL_COMPANIES_KEY);
+};
+
+export const saveCompany = async (company: Company): Promise<void> => {
+    if (isConfigured() && db) {
+        await setDoc(doc(db, COMPANIES_COL, company.id), company);
+        return;
+    }
+    const local = getLocalData<Company>(LOCAL_COMPANIES_KEY);
+    const idx = local.findIndex(c => c.id === company.id);
+    if (idx >= 0) local[idx] = company;
+    else local.push(company);
+    setLocalData(LOCAL_COMPANIES_KEY, local);
+};
+
+export const createCompany = async (name: string, templateId: string, tags: string[] = []): Promise<Company> => {
+    const newCompany: Company = {
+        id: Date.now().toString(36) + Math.random().toString(36).substr(2),
+        name,
+        templateId,
+        tags,
+        createdAt: Date.now(),
+        responses: []
+    };
+    await saveCompany(newCompany);
+    return newCompany;
+};
+
+export const deleteCompany = async (id: string): Promise<void> => {
+    if (isConfigured() && db) {
+        await deleteDoc(doc(db, COMPANIES_COL, id));
+        return;
+    }
+    const local = getLocalData<Company>(LOCAL_COMPANIES_KEY);
+    setLocalData(LOCAL_COMPANIES_KEY, local.filter(c => c.id !== id));
+};
+
+// Updated: Track lastActivity on response
+export const addResponseToCompany = async (companyId: string, response: ParticipantResponse): Promise<void> => {
+    if (isConfigured() && db) {
+        const ref = doc(db, COMPANIES_COL, companyId);
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+            const comp = snap.data() as Company;
+            comp.responses.push(response);
+            comp.lastActivity = Date.now(); // Update activity timestamp
+            await setDoc(ref, comp);
+        }
+        return;
+    }
+    const local = getLocalData<Company>(LOCAL_COMPANIES_KEY);
+    const company = local.find(c => c.id === companyId);
+    if (company) {
+        company.responses.push(response);
+        company.lastActivity = Date.now(); // Update activity timestamp
+        setLocalData(LOCAL_COMPANIES_KEY, local);
+    }
+};
+
+// New: Mark company as viewed by admin
+export const markCompanyViewed = async (companyId: string): Promise<void> => {
+    if (isConfigured() && db) {
+        const ref = doc(db, COMPANIES_COL, companyId);
+        // We merge to avoid overwriting responses if they came in concurrently
+        await setDoc(ref, { viewedAt: Date.now() }, { merge: true });
+        return;
+    }
+    const local = getLocalData<Company>(LOCAL_COMPANIES_KEY);
+    const company = local.find(c => c.id === companyId);
+    if (company) {
+        company.viewedAt = Date.now();
+        setLocalData(LOCAL_COMPANIES_KEY, local);
+    }
+};
+
+// --- Utils ---
+
+export const encodeResponse = (response: ParticipantResponse): string => {
+  try {
+    return btoa(JSON.stringify(response));
+  } catch (e) {
+    return "";
+  }
+};
+
+export const decodeResponse = (token: string): ParticipantResponse | null => {
+  try {
+    const json = atob(token);
+    return JSON.parse(json);
+  } catch (e) {
+    return null;
+  }
+};

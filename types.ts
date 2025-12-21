@@ -1,7 +1,9 @@
+export type QuestionType = 'rating' | 'text';
+
 export interface Question {
   id: string;
   text: string;
-  type?: 'rating' | 'text';
+  type?: QuestionType;
 }
 
 export interface Category {
@@ -22,6 +24,7 @@ export interface AssessmentTemplate {
   createdAt: number;
   updatedAt: number;
   assessmentType?: 'blt' | 'long-form';
+  archived?: boolean;
 }
 
 export enum GameState {
@@ -80,3 +83,4 @@ export const SCALE_LABELS = {
   3: "Agree",
   4: "Strongly Agree"
 };
+

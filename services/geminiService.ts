@@ -171,3 +171,4 @@ export const generateExecutiveSummary = async (data: AIAnalysisInput): Promise<s
 
     return response.text || "Could not generate analysis.";
 };
+

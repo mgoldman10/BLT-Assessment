@@ -2,6 +2,38 @@ import { AssessmentData, AssessmentTemplate, Category, UserAnswers } from "../ty
 import { getTemplate } from "./storage";
 import { GoogleGenAI, Type } from "@google/genai";
 
+const getTotalQuestions = (template: AssessmentTemplate) =>
+  template.categories.reduce((count, category) => count + category.questions.length, 0);
+
+const resolveAssessmentType = (template: AssessmentTemplate): AssessmentTemplate['assessmentType'] => {
+  if (template.assessmentType) return template.assessmentType;
+  if (template.categories.some(category => category.questions.some(question => question.type === 'text'))) {
+    return 'long-form';
+  }
+  const totalQuestions = getTotalQuestions(template);
+  return totalQuestions === 30 || totalQuestions === 35 ? 'blt' : 'long-form';
+};
+
+const normalizeTemplateAssessmentType = (template: AssessmentTemplate): AssessmentTemplate => ({
+  ...template,
+  assessmentType: resolveAssessmentType(template)
+});
+
+const normalizeNonBltTemplate = (template: AssessmentTemplate): AssessmentTemplate => {
+  const normalized = normalizeTemplateAssessmentType(template);
+  if (normalized.assessmentType !== 'long-form') return normalized;
+  return {
+    ...normalized,
+    categories: normalized.categories.map(category => ({
+      ...category,
+      questions: category.questions.map(question => ({
+        ...question,
+        type: 'text' as const
+      }))
+    }))
+  };
+};
+
 export const getAssessmentData = async (templateId: string): Promise<AssessmentData> => {
   // Note: getTemplate is now async
   const template = await getTemplate(templateId);
@@ -15,9 +47,11 @@ export const getAssessmentData = async (templateId: string): Promise<AssessmentD
     throw new Error("Assessment Template not found.");
   }
 
+  const normalizedTemplate = normalizeNonBltTemplate(template);
+
   return {
-    topic: template.name, // FIXED: Uses the actual template name (e.g. "Pre-Planning Survey")
-    categories: template.categories
+    topic: normalizedTemplate.name, // FIXED: Uses the actual template name (e.g. "Pre-Planning Survey")
+    categories: normalizedTemplate.categories
   };
 };
 

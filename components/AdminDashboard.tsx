@@ -485,7 +485,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
             case 'date-asc': return a.createdAt - b.createdAt;
             case 'name-asc': return a.name.localeCompare(b.name);
             case 'name-desc': return b.name.localeCompare(a.name);
-            case 'resp-desc': return b.responses.length - a.responses.length;
+            case 'resp-desc': return b.responses.length - b.responses.length;
             case 'resp-asc': return a.responses.length - b.responses.length;
             default: return (b.lastActivity || 0) - (a.lastActivity || 0);
         }
@@ -494,13 +494,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
   const handleSelectAll = () => {
       const allFilteredSelected = filteredCompanies.length > 0 && filteredCompanies.every(c => selectedIds.has(c.id));
       if (allFilteredSelected) {
-          const newSet = new Set(selectedIds);
-          filteredCompanies.forEach(c => newSet.delete(c.id));
-          setSelectedIds(newSet);
+          setSelectedIds(new Set());
       } else {
-          const newSet = new Set(selectedIds);
-          filteredCompanies.forEach(c => newSet.add(c.id));
-          setSelectedIds(newSet);
+          const allIds = new Set(filteredCompanies.map(c => c.id));
+          setSelectedIds(allIds);
       }
   };
 
@@ -510,51 +507,388 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
       setFilterTemplateIds(new Set());
       setFilterStartDate('');
       setFilterEndDate('');
-      setSortOption('date-desc'); // Default reset to Newest First
+      setSortOption('date-desc');
   };
 
-  return (
-    <div className="max-w-6xl mx-auto px-4 py-12 pb-32">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-6 border-b border-brand-grey/20 pb-8">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-extrabold text-white mb-2 leading-tight">Admin Dashboard</h1>
-          <div className="flex items-center gap-2">
-            <p className="text-brand-grey">Welcome, {user.name}.</p>
-            {isCloud ? 
-                <span className="flex items-center gap-1 text-[10px] uppercase font-bold bg-green-900/30 text-green-400 px-2 py-0.5 rounded border border-green-800"><Cloud className="w-3 h-3"/> Cloud Active</span> : 
-                <span className="flex items-center gap-1 text-[10px] uppercase font-bold bg-neutral-700 text-neutral-400 px-2 py-0.5 rounded border border-neutral-600"><HardDrive className="w-3 h-3"/> Local Storage</span>
-            }
-          </div>
+  const handleLogout = () => {
+    logout();
+    onLogout();
+  };
+
+  const handleExport = () => {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(companies, null, 2));
+      const dlAnchorElem = document.createElement('a');
+      dlAnchorElem.setAttribute("href", dataStr);
+      dlAnchorElem.setAttribute("download", "assessments_export.json");
+      dlAnchorElem.click();
+  };
+
+  const handleManualEntry = async (company: Company) => {
+    setActiveCompanyId(company.id);
+    setShowImportModal(true);
+  };
+
+  const toggleTemplateStatus = async (template: AssessmentTemplate) => {
+    const updated = { ...template, archived: !template.archived };
+    await saveTemplate(updated);
+    await refreshData();
+  };
+
+  const toggleCloudSync = async () => {
+      await refreshData();
+      if (!isCloud) {
+          alert("Cloud sync is not configured.");
+      }
+  };
+
+  const isCompanySelected = (id: string) => selectedIds.has(id);
+
+  const handleBulkDelete = async () => {
+      if (!selectedIds.size) return;
+      if (!window.confirm(`Are you sure you want to delete ${selectedIds.size} assessment(s)?`)) return;
+      for (const id of selectedIds) {
+          await deleteCompany(id);
+      }
+      await refreshData();
+      setSelectedIds(new Set());
+  };
+
+  const handleBulkArchive = async () => {
+      if (!selectedIds.size) return;
+      for (const id of selectedIds) {
+          const company = companies.find(c => c.id === id);
+          if (company) await saveCompany({ ...company, archived: true });
+      }
+      await refreshData();
+      setSelectedIds(new Set());
+  };
+
+  const handleBulkUnarchive = async () => {
+      if (!selectedIds.size) return;
+      for (const id of selectedIds) {
+          const company = companies.find(c => c.id === id);
+          if (company) await saveCompany({ ...company, archived: false });
+      }
+      await refreshData();
+      setSelectedIds(new Set());
+  };
+
+  const handleViewReport = (company: Company) => {
+      onViewReport(company);
+  };
+
+  const handleBulkViewReport = () => {
+      const selected = companies.filter(c => selectedIds.has(c.id));
+      if (selected.length === 1) {
+          onViewReport(selected[0]);
+      } else {
+          alert("Please select exactly one assessment to view.");
+      }
+  };
+
+  const handleBulkPrint = () => {
+      const selected = companies.filter(c => selectedIds.has(c.id));
+      if (selected.length) onBatchPrint(selected);
+  };
+
+  const handleBulkShare = () => {
+      const selected = companies.filter(c => selectedIds.has(c.id));
+      if (!selected.length) return;
+      const text = selected.map(c => `${c.name}\n${getShareLink(c)}`).join('\n\n');
+      setBulkLinksText(text);
+      setShowBulkLinksModal(true);
+  };
+
+  const handleOpenSettings = async () => {
+      const s = await getSettings();
+      setSettings(s || {});
+      setCustomLogo(s?.logoUrl || null);
+      setShowSettingsModal(true);
+  };
+
+  const handleAddResponse = async (company: Company) => {
+      setActiveCompanyId(company.id);
+      setShowImportModal(true);
+  };
+
+  const handleDuplicateResponse = async (company: Company, response: ParticipantResponse) => {
+      const newResponse = { ...response, id: Date.now().toString(36) + Math.random().toString(36).substr(2), timestamp: Date.now() };
+      await addResponseToCompany(company.id, newResponse);
+      await refreshData();
+  };
+
+  const handleDeleteResponse = (companyId: string, responseId: string, name: string) => {
+      setResponseToDelete({ companyId, responseId, name });
+  };
+
+  const handleDeleteUser = (user: User) => {
+      setUserToDelete(user);
+  };
+
+  const handleDeleteTemplate = (template: AssessmentTemplate) => {
+      setTemplateToDelete(template);
+  };
+
+  const handleEditUser = (user: User) => {
+      setEditingUser(user);
+      setNewUserName(user.name);
+      setNewUserEmail(user.email);
+      setNewUserRole(user.role);
+      setNewUserPassword(user.password || '');
+      setShowUserModal(true);
+  };
+
+  const handleEditTemplate = (template: AssessmentTemplate) => {
+      setEditingTemplate(template);
+  };
+
+  const handleDuplicateTemplateFromList = async (template: AssessmentTemplate) => {
+      await handleDuplicateTemplate(template);
+  };
+
+  const handleUpdateTemplate = async (template: AssessmentTemplate) => {
+      await handleSaveTemplate(template);
+  };
+
+  const handleCloseTemplateEditor = () => {
+      setEditingTemplate(null);
+  };
+
+  const handleNewTemplate = async () => {
+      await handleCreateTemplate();
+  };
+
+  const handleGenerateTemplate = async (e: React.FormEvent) => {
+      await handleGenerateAI(e);
+  };
+
+  const handleSaveLogo = (file: File) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+          const url = reader.result as string;
+          saveLogo(url);
+          setCustomLogo(url);
+      };
+      reader.readAsDataURL(file);
+  };
+
+  const handleRemoveLogo = () => {
+      removeLogo();
+      setCustomLogo(null);
+  };
+
+  const renderCompaniesTab = () => (
+    <>
+      {isCreating && (
+        <div className="mb-8 p-6 bg-neutral-800 rounded-2xl border border-neutral-700 animate-in fade-in slide-in-from-top-4">
+          <form onSubmit={handleCreateCompany} className="flex flex-col gap-4">
+            <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                <label className="block text-sm font-medium text-brand-grey mb-2">Company / Team Name</label>
+                <input 
+                    type="text" value={newCompanyName} onChange={(e) => setNewCompanyName(e.target.value)}
+                    className="w-full px-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none"
+                    placeholder="e.g. Acme Corp Leadership" autoFocus
+                />
+                </div>
+                <div>
+                <label className="block text-sm font-medium text-brand-grey mb-2">Tags (Optional)</label>
+                <input 
+                    type="text" value={newCompanyTags} onChange={(e) => setNewCompanyTags(e.target.value)}
+                    className="w-full px-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none"
+                    placeholder="e.g. Q1, Tech Team"
+                />
+                </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-brand-grey mb-2">Select Template</label>
+              <select value={newCompanyTemplateId} onChange={(e) => setNewCompanyTemplateId(e.target.value)} className="w-full px-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none">
+                {templates.map(t => (
+                  <option key={t.id} value={t.id}>{t.name} ({t.categories.reduce((a,c) => a + c.questions.length, 0)} questions)</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-2 justify-end mt-2">
+                <button type="button" onClick={() => setIsCreating(false)} className="px-6 py-3 bg-neutral-700 hover:bg-neutral-600 text-white rounded-xl font-bold">Cancel</button>
+                <button type="submit" disabled={isLoading} className="px-6 py-3 bg-brand-orange hover:bg-orange-600 text-white rounded-xl font-bold">{isLoading ? 'Creating...' : 'Create Assessment'}</button>
+            </div>
+          </form>
         </div>
-        <div className="flex gap-3">
-            <button
-                onClick={() => {
-                    setNewPasswordInput('');
-                    setConfirmPasswordInput('');
-                    setCurrentPassword('');
-                    setShowChangePasswordModal(true);
-                }}
-                className="px-4 py-3 bg-neutral-800 hover:bg-neutral-700 text-white rounded-xl font-bold flex items-center gap-2 transition-colors shadow-lg border border-brand-grey/10"
-                title="Change Password"
-            >
-                <Key className="w-5 h-5" />
+      )}
+
+      <div className="mb-6 space-y-4">
+        <div className="flex gap-4">
+            <div className="relative flex-1">
+                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-brand-grey w-5 h-5" />
+                <input type="text" placeholder="Search by name..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-neutral-800 border border-neutral-700 rounded-2xl text-white placeholder-neutral-500 focus:ring-2 focus:ring-brand-orange outline-none transition-all shadow-sm" />
+            </div>
+            <button onClick={handleSelectAll} className="px-6 py-4 bg-neutral-800 border border-neutral-700 text-brand-grey hover:text-white hover:border-neutral-500 rounded-2xl font-bold transition-colors whitespace-nowrap">
+                {filteredCompanies.length > 0 && filteredCompanies.every(c => selectedIds.has(c.id)) ? 'Unselect All' : 'Select All'}
             </button>
-            {isSuperAdmin && (
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 p-4 bg-neutral-800/50 border border-neutral-700/50 rounded-2xl">
+            <div className="flex items-center gap-2 text-sm text-brand-grey mr-2"><Filter className="w-4 h-4" /> Filters:</div>
+            
+            <div className="relative" ref={templateFilterRef}>
                 <button 
-                    onClick={() => setShowSettingsModal(true)}
-                    className="px-4 py-3 bg-neutral-800 hover:bg-neutral-700 text-white rounded-xl font-bold flex items-center gap-2 transition-colors shadow-lg border border-brand-grey/10"
-                    title="Settings"
+                    onClick={() => setIsTemplateFilterOpen(!isTemplateFilterOpen)} 
+                    className={`flex items-center gap-2 pl-3 pr-3 py-2 border rounded-lg text-sm outline-none transition-colors ${filterTemplateIds.size > 0 ? 'bg-neutral-700 border-neutral-500 text-white' : 'bg-neutral-800 border-neutral-600 text-brand-grey hover:border-neutral-500'}`}
                 >
-                <Settings className="w-5 h-5" />
+                    <FileText className="w-3.5 h-3.5" />
+                    {filterTemplateIds.size === 0 ? "All Types" : `${filterTemplateIds.size} Types`}
+                    <ChevronDown className="w-3 h-3 ml-1" />
                 </button>
+                
+                {isTemplateFilterOpen && (
+                    <div className="absolute top-full left-0 mt-2 w-64 bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl z-50 p-2 max-h-64 overflow-y-auto">
+                        {templates.map(t => (
+                            <div key={t.id} onClick={() => toggleTemplateFilter(t.id)} className="flex items-center gap-3 p-2 hover:bg-neutral-800 rounded-lg cursor-pointer">
+                                {filterTemplateIds.has(t.id) ? 
+                                    <CheckSquare className="w-4 h-4 text-brand-orange shrink-0" /> : 
+                                    <Square className="w-4 h-4 text-neutral-600 shrink-0" />
+                                }
+                                <span className={`text-sm ${filterTemplateIds.has(t.id) ? 'text-white font-medium' : 'text-neutral-400'}`}>{t.name}</span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            <div className="relative group">
+                <select value={filterTag} onChange={(e) => setFilterTag(e.target.value)} className="appearance-none pl-9 pr-8 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-sm text-white focus:ring-1 focus:ring-brand-orange outline-none cursor-pointer hover:border-neutral-500">
+                    <option value="">All Tags</option>
+                    {allUniqueTags.map(tag => (<option key={tag} value={tag}>{tag}</option>))}
+                </select>
+                <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-grey" />
+            </div>
+            <div className="flex items-center gap-2">
+                <div className="relative">
+                    <input type="date" value={filterStartDate} onChange={(e) => setFilterStartDate(e.target.value)} className="pl-9 pr-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-sm text-white focus:ring-1 focus:ring-brand-orange outline-none hover:border-neutral-500" placeholder="Start" />
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-grey" />
+                </div>
+                <span className="text-brand-grey">-</span>
+                <div className="relative">
+                     <input type="date" value={filterEndDate} onChange={(e) => setFilterEndDate(e.target.value)} className="pl-9 pr-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-sm text-white focus:ring-1 focus:ring-brand-orange outline-none hover:border-neutral-500" />
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-grey" />
+                </div>
+            </div>
+            <div className="flex-1"></div>
+            <div className="flex items-center gap-2 text-sm text-brand-grey border-l border-neutral-700 pl-4">
+                <ArrowUpDown className="w-4 h-4" /> Sort:
+                <select value={sortOption} onChange={(e) => setSortOption(e.target.value as any)} className="appearance-none pl-3 pr-8 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-sm text-white focus:ring-1 focus:ring-brand-orange outline-none cursor-pointer hover:border-neutral-500">
+                    <option value="date-desc">Newest First</option>
+                    <option value="activity">Last Activity</option>
+                    <option value="date-asc">Oldest First</option>
+                    <option value="name-asc">Name (A-Z)</option>
+                    <option value="name-desc">Name (Z-A)</option>
+                    <option value="resp-desc">Most Responses</option>
+                    <option value="resp-asc">Fewest Responses</option>
+                </select>
+            </div>
+            {(filterTag || filterStartDate || filterEndDate || searchTerm || sortOption !== 'date-desc' || filterTemplateIds.size > 0) && (
+                <button onClick={resetFilters} className="p-2 text-brand-grey hover:text-white hover:bg-neutral-700 rounded-lg transition-colors" title="Reset Filters"><RotateCcw className="w-4 h-4" /></button>
             )}
+        </div>
+      </div>
+
+      {filteredCompanies.length === 0 ? (
+        <div className="text-center py-12 text-brand-grey bg-neutral-800/30 rounded-2xl border border-neutral-800 border-dashed">
+            {isLoading ? 'Loading...' : 'No assessments found.'}
+        </div>
+      ) : (
+        <div className="grid gap-4">
+          {filteredCompanies.map(company => {
+            const template = templates.find(t => t.id === company.templateId);
+            const isUnread = company.lastActivity && (!company.viewedAt || company.lastActivity > company.viewedAt);
+
+            return (
+            <div key={company.id} className={`bg-neutral-800 p-6 rounded-2xl border flex flex-col lg:flex-row gap-6 justify-between items-start lg:items-center transition-all shadow-sm ${selectedIds.has(company.id) ? 'border-brand-orange ring-1 ring-brand-orange/50 bg-orange-900/10' : 'border-neutral-700 hover:border-neutral-500'}`}>
+              <div className="flex items-start gap-4 flex-1 w-full">
+                <div className="flex flex-col items-center gap-2">
+                   <input type="checkbox" checked={selectedIds.has(company.id)} onChange={() => toggleSelection(company.id)} className="w-4 h-4 rounded border-neutral-600 text-brand-orange bg-brand-black flex-shrink-0 focus:ring-brand-orange" />
+                   {isUnread && <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]" title="New Activity"></div>}
+                </div>
+                <div className="flex-1">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-2">
+                      <h3 className="text-2xl font-bold text-white break-words">{company.name}</h3>
+                      <div className="flex items-center gap-2 px-3 py-1 bg-neutral-700/50 rounded-full border border-neutral-600 text-xs font-medium text-brand-grey w-fit">
+                          <Calendar className="w-3 h-3" /> {new Date(company.createdAt).toLocaleDateString()}
+                      </div>
+                      {template && (
+                        <span className="px-2 py-1 rounded text-[10px] uppercase font-bold bg-brand-black text-brand-grey border border-neutral-700">{template.name}</span>
+                      )}
+                      {company.lastActivity && (
+                         <span className="px-2 py-1 rounded text-[10px] uppercase font-bold bg-neutral-800 text-neutral-400 border border-neutral-700 flex items-center gap-1">
+                            <Clock className="w-3 h-3" /> Active: {new Date(company.lastActivity).toLocaleDateString()}
+                         </span>
+                      )}
+                    </div>
+                    
+                    {company.tags && company.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-3">
+                            {company.tags.map((tag, idx) => (
+                                <span key={idx} className="flex items-center gap-1 px-2 py-0.5 bg-neutral-700 text-brand-grey border border-neutral-600 rounded text-xs font-medium"><Tag className="w-3 h-3" /> {tag}</span>
+                            ))}
+                        </div>
+                    )}
+                    
+                    <div className="flex flex-wrap items-center gap-4 text-sm text-brand-grey">
+                        <button onClick={() => { setManagingCompany(company); setShowManageModal(true); }} className={`flex items-center gap-2 hover:text-white transition-colors ${company.responses.length > 0 ? "text-brand-orange font-bold" : ""}`}>
+                            <Users className="w-4 h-4" />
+                            <span className="underline decoration-dotted">{company.responses.length} Response{company.responses.length !== 1 ? 's' : ''}</span>
+                        </button>
+                        <div className="w-1 h-1 bg-neutral-600 rounded-full"></div>
+                        <button onClick={() => { setShareLink(getShareLink(company)); setShowShareModal(true); }} className="flex items-center gap-2 text-brand-grey hover:text-white transition-colors"><Share2 className="w-4 h-4" /> Get Link 🔗</button>
+                    </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                  <button onClick={() => handleViewReport(company)} className="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg font-bold flex items-center gap-2"><BarChart2 className="w-4 h-4" /> View Report</button>
+                  <button onClick={() => startRenamingCompany(company)} className="px-3 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg"><Edit3 className="w-4 h-4"/></button>
+                  <button onClick={() => handleAddResponse(company)} className="px-3 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg"><UserPlus className="w-4 h-4"/></button>
+                  <button onClick={() => handleSimulateData(company)} className="px-3 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg"><Terminal className="w-4 h-4"/></button>
+                  <button onClick={() => setCompanyToDelete(company)} className="px-3 py-2 bg-neutral-700 hover:bg-red-900/50 text-brand-grey hover:text-red-400 rounded-lg"><Trash2 className="w-4 h-4"/></button>
+              </div>
+            </div>
+          )})}
+        </div>
+      )}
+    </>
+  );
+
+  return (
+    <div className="min-h-screen bg-brand-black text-white p-4 md:p-8">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
+        <div>
+          <h1 className="text-3xl md:text-4xl font-extrabold">Admin Dashboard</h1>
+          <p className="text-brand-grey mt-2">Manage your assessments, templates, and users.</p>
+        </div>
+        <div className="flex gap-3 flex-wrap">
             <button 
-                onClick={onLogout}
-                className="px-4 py-3 bg-neutral-800 hover:bg-red-900/30 text-white hover:text-red-400 rounded-xl font-bold flex items-center gap-2 transition-colors shadow-lg border border-brand-grey/10"
-                title="Logout"
+                onClick={handleOpenSettings}
+                className="px-4 py-3 bg-neutral-800 hover:bg-neutral-700 text-white rounded-xl font-bold flex items-center gap-2 transition-colors border border-neutral-700"
             >
-                <LogOut className="w-5 h-5" />
+                <Settings className="w-5 h-5" /> Settings
+            </button>
+            <button 
+                onClick={handleBulkShare}
+                className="px-4 py-3 bg-neutral-800 hover:bg-neutral-700 text-white rounded-xl font-bold flex items-center gap-2 transition-colors border border-neutral-700"
+            >
+                <Share2 className="w-5 h-5" /> Share Links
+            </button>
+            <button 
+                onClick={handleBulkPrint}
+                className="px-4 py-3 bg-neutral-800 hover:bg-neutral-700 text-white rounded-xl font-bold flex items-center gap-2 transition-colors border border-neutral-700"
+            >
+                <Printer className="w-5 h-5" /> Print
+            </button>
+            <button 
+                onClick={handleBulkViewReport}
+                className="px-4 py-3 bg-neutral-800 hover:bg-neutral-700 text-white rounded-xl font-bold flex items-center gap-2 transition-colors border border-neutral-700"
+            >
+                <BarChart2 className="w-5 h-5" /> View Report
             </button>
             <button 
                 onClick={() => setIsCreating(true)}
@@ -590,209 +924,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
         )}
       </div>
 
-      {/* --- COMPANIES TAB --- */}
-      {activeTab === 'companies' && (
-        <>
-          {isCreating && (
-            <div className="mb-8 p-6 bg-neutral-800 rounded-2xl border border-neutral-700 animate-in fade-in slide-in-from-top-4">
-              <form onSubmit={handleCreateCompany} className="flex flex-col gap-4">
-                <div className="grid md:grid-cols-2 gap-4">
-                    <div>
-                    <label className="block text-sm font-medium text-brand-grey mb-2">Company / Team Name</label>
-                    <input 
-                        type="text" value={newCompanyName} onChange={(e) => setNewCompanyName(e.target.value)}
-                        className="w-full px-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none"
-                        placeholder="e.g. Acme Corp Leadership" autoFocus
-                    />
-                    </div>
-                    <div>
-                    <label className="block text-sm font-medium text-brand-grey mb-2">Tags (Optional)</label>
-                    <input 
-                        type="text" value={newCompanyTags} onChange={(e) => setNewCompanyTags(e.target.value)}
-                        className="w-full px-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none"
-                        placeholder="e.g. Q1, Tech Team"
-                    />
-                    </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-brand-grey mb-2">Select Template</label>
-                  <select value={newCompanyTemplateId} onChange={(e) => setNewCompanyTemplateId(e.target.value)} className="w-full px-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none">
-                    {templates.map(t => (
-                      <option key={t.id} value={t.id}>{t.name} ({t.categories.reduce((a,c) => a + c.questions.length, 0)} questions)</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex gap-2 justify-end mt-2">
-                    <button type="button" onClick={() => setIsCreating(false)} className="px-6 py-3 bg-neutral-700 hover:bg-neutral-600 text-white rounded-xl font-bold">Cancel</button>
-                    <button type="submit" disabled={isLoading} className="px-6 py-3 bg-brand-orange hover:bg-orange-600 text-white rounded-xl font-bold">{isLoading ? 'Creating...' : 'Create Assessment'}</button>
-                </div>
-              </form>
-            </div>
-          )}
-
-          <div className="mb-6 space-y-4">
-            <div className="flex gap-4">
-                <div className="relative flex-1">
-                    <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-brand-grey w-5 h-5" />
-                    <input type="text" placeholder="Search by name..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-neutral-800 border border-neutral-700 rounded-2xl text-white placeholder-neutral-500 focus:ring-2 focus:ring-brand-orange outline-none transition-all shadow-sm" />
-                </div>
-                <button onClick={handleSelectAll} className="px-6 py-4 bg-neutral-800 border border-neutral-700 text-brand-grey hover:text-white hover:border-neutral-500 rounded-2xl font-bold transition-colors whitespace-nowrap">
-                    {filteredCompanies.length > 0 && filteredCompanies.every(c => selectedIds.has(c.id)) ? 'Unselect All' : 'Select All'}
-                </button>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3 p-4 bg-neutral-800/50 border border-neutral-700/50 rounded-2xl">
-                <div className="flex items-center gap-2 text-sm text-brand-grey mr-2"><Filter className="w-4 h-4" /> Filters:</div>
-                
-                <div className="relative" ref={templateFilterRef}>
-                    <button 
-                        onClick={() => setIsTemplateFilterOpen(!isTemplateFilterOpen)} 
-                        className={`flex items-center gap-2 pl-3 pr-3 py-2 border rounded-lg text-sm outline-none transition-colors ${filterTemplateIds.size > 0 ? 'bg-neutral-700 border-neutral-500 text-white' : 'bg-neutral-800 border-neutral-600 text-brand-grey hover:border-neutral-500'}`}
-                    >
-                        <FileText className="w-3.5 h-3.5" />
-                        {filterTemplateIds.size === 0 ? "All Types" : `${filterTemplateIds.size} Types`}
-                        <ChevronDown className="w-3 h-3 ml-1" />
-                    </button>
-                    
-                    {isTemplateFilterOpen && (
-                        <div className="absolute top-full left-0 mt-2 w-64 bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl z-50 p-2 max-h-64 overflow-y-auto">
-                            {templates.map(t => (
-                                <div key={t.id} onClick={() => toggleTemplateFilter(t.id)} className="flex items-center gap-3 p-2 hover:bg-neutral-800 rounded-lg cursor-pointer">
-                                    {filterTemplateIds.has(t.id) ? 
-                                        <CheckSquare className="w-4 h-4 text-brand-orange shrink-0" /> : 
-                                        <Square className="w-4 h-4 text-neutral-600 shrink-0" />
-                                    }
-                                    <span className={`text-sm ${filterTemplateIds.has(t.id) ? 'text-white font-medium' : 'text-neutral-400'}`}>{t.name}</span>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-
-                <div className="relative group">
-                    <select value={filterTag} onChange={(e) => setFilterTag(e.target.value)} className="appearance-none pl-9 pr-8 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-sm text-white focus:ring-1 focus:ring-brand-orange outline-none cursor-pointer hover:border-neutral-500">
-                        <option value="">All Tags</option>
-                        {allUniqueTags.map(tag => (<option key={tag} value={tag}>{tag}</option>))}
-                    </select>
-                    <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-grey" />
-                </div>
-                <div className="flex items-center gap-2">
-                    <div className="relative">
-                        <input type="date" value={filterStartDate} onChange={(e) => setFilterStartDate(e.target.value)} className="pl-9 pr-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-sm text-white focus:ring-1 focus:ring-brand-orange outline-none hover:border-neutral-500" placeholder="Start" />
-                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-grey" />
-                    </div>
-                    <span className="text-brand-grey">-</span>
-                    <div className="relative">
-                         <input type="date" value={filterEndDate} onChange={(e) => setFilterEndDate(e.target.value)} className="pl-9 pr-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-sm text-white focus:ring-1 focus:ring-brand-orange outline-none hover:border-neutral-500" />
-                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-grey" />
-                    </div>
-                </div>
-                <div className="flex-1"></div>
-                <div className="flex items-center gap-2 text-sm text-brand-grey border-l border-neutral-700 pl-4">
-                    <ArrowUpDown className="w-4 h-4" /> Sort:
-                    <select value={sortOption} onChange={(e) => setSortOption(e.target.value as any)} className="appearance-none pl-3 pr-8 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-sm text-white focus:ring-1 focus:ring-brand-orange outline-none cursor-pointer hover:border-neutral-500">
-                        <option value="date-desc">Newest First</option>
-                        <option value="activity">Last Activity</option>
-                        <option value="date-asc">Oldest First</option>
-                        <option value="name-asc">Name (A-Z)</option>
-                        <option value="name-desc">Name (Z-A)</option>
-                        <option value="resp-desc">Most Responses</option>
-                        <option value="resp-asc">Fewest Responses</option>
-                    </select>
-                </div>
-                {(filterTag || filterStartDate || filterEndDate || searchTerm || sortOption !== 'date-desc' || filterTemplateIds.size > 0) && (
-                    <button onClick={resetFilters} className="p-2 text-brand-grey hover:text-white hover:bg-neutral-700 rounded-lg transition-colors" title="Reset Filters"><RotateCcw className="w-4 h-4" /></button>
-                )}
-            </div>
-          </div>
-
-          {filteredCompanies.length === 0 ? (
-            <div className="text-center py-12 text-brand-grey bg-neutral-800/30 rounded-2xl border border-neutral-800 border-dashed">
-                {isLoading ? 'Loading...' : 'No assessments found.'}
-            </div>
-          ) : (
-            <div className="grid gap-4">
-              {filteredCompanies.map(company => {
-                const template = templates.find(t => t.id === company.templateId);
-                const isUnread = company.lastActivity && (!company.viewedAt || company.lastActivity > company.viewedAt);
-
-                return (
-                <div key={company.id} className={`bg-neutral-800 p-6 rounded-2xl border flex flex-col lg:flex-row gap-6 justify-between items-start lg:items-center transition-all shadow-sm ${selectedIds.has(company.id) ? 'border-brand-orange ring-1 ring-brand-orange/50 bg-orange-900/10' : 'border-neutral-700 hover:border-neutral-500'}`}>
-                  <div className="flex items-start gap-4 flex-1 w-full">
-                    <div className="flex flex-col items-center gap-2">
-                       <input type="checkbox" checked={selectedIds.has(company.id)} onChange={() => toggleSelection(company.id)} className="w-4 h-4 rounded border-neutral-600 text-brand-orange bg-brand-black flex-shrink-0 focus:ring-brand-orange" />
-                       {isUnread && <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]" title="New Activity"></div>}
-                    </div>
-                    <div className="flex-1">
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-2">
-                          <h3 className="text-2xl font-bold text-white break-words">{company.name}</h3>
-                          <div className="flex items-center gap-2 px-3 py-1 bg-neutral-700/50 rounded-full border border-neutral-600 text-xs font-medium text-brand-grey w-fit">
-                              <Calendar className="w-3 h-3" /> {new Date(company.createdAt).toLocaleDateString()}
-                          </div>
-                          {template && (
-                            <span className="px-2 py-1 rounded text-[10px] uppercase font-bold bg-brand-black text-brand-grey border border-neutral-700">{template.name}</span>
-                          )}
-                          {company.lastActivity && (
-                             <span className="px-2 py-1 rounded text-[10px] uppercase font-bold bg-neutral-800 text-neutral-400 border border-neutral-700 flex items-center gap-1">
-                                <Clock className="w-3 h-3" /> Active: {new Date(company.lastActivity).toLocaleDateString()}
-                             </span>
-                          )}
-                        </div>
-                        
-                        {company.tags && company.tags.length > 0 && (
-                            <div className="flex flex-wrap gap-2 mb-3">
-                                {company.tags.map((tag, idx) => (
-                                    <span key={idx} className="flex items-center gap-1 px-2 py-0.5 bg-neutral-700 text-brand-grey border border-neutral-600 rounded text-xs font-medium"><Tag className="w-3 h-3" /> {tag}</span>
-                                ))}
-                            </div>
-                        )}
-                        
-                        <div className="flex flex-wrap items-center gap-4 text-sm text-brand-grey">
-                            <button onClick={() => { setManagingCompany(company); setShowManageModal(true); }} className={`flex items-center gap-2 hover:text-white transition-colors ${company.responses.length > 0 ? "text-brand-orange font-bold" : ""}`}>
-                                <Users className="w-4 h-4" />
-                                <span className="underline decoration-dotted">{company.responses.length} Response{company.responses.length !== 1 ? 's' : ''}</span>
-                            </button>
-                            <div className="w-1 h-1 bg-neutral-600 rounded-full"></div>
-                            <button onClick={() => { setShareLink(getShareLink(company)); setShowShareModal(true); }} className="flex items-center gap-2 text-brand-grey hover:text-white transition-colors"><Share2 className="w-4 h-4" /> Get Link 🔗</button>
-                        </div>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap gap-3 w-full lg:w-auto pl-8 lg:pl-0">
-                    <button onClick={() => handleSimulateData(company)} className="px-4 py-2 bg-neutral-900 hover:bg-neutral-950 text-brand-grey border border-neutral-700 rounded-lg text-sm font-medium transition-colors"><Terminal className="w-4 h-4 inline mr-2" /> Sim</button>
-                    <button onClick={() => { setActiveCompanyId(company.id); setShowImportModal(true); }} className="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg text-sm font-medium transition-colors"><UserPlus className="w-4 h-4 inline mr-2" /> Input</button>
-                    <button onClick={() => onViewReport(company)} disabled={company.responses.length === 0} className="px-4 py-2 bg-brand-orange hover:bg-orange-600 disabled:bg-neutral-700 disabled:text-neutral-500 text-white rounded-lg text-sm font-bold transition-colors relative">
-                        <BarChart2 className="w-4 h-4 inline mr-2" /> Report
-                        {isUnread && <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-neutral-800"></span>}
-                    </button>
-                    <button onClick={() => startRenamingCompany(company)} className="px-3 py-2 text-brand-grey hover:text-brand-orange transition-colors border border-transparent hover:border-orange-900/30 rounded-lg" title="Edit Name"><Edit3 className="w-5 h-5" /></button>
-                    <button onClick={() => setCompanyToDelete(company)} className="px-3 py-2 text-brand-grey hover:text-red-400 transition-colors border border-transparent hover:border-red-900/30 rounded-lg" title="Delete"><Trash2 className="w-5 h-5" /></button>
-                  </div>
-                </div>
-              )})}
-            </div>
-          )}
-
-          <div className={`fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-neutral-900 border border-neutral-700 shadow-2xl rounded-full px-6 py-3 flex items-center gap-4 transition-all duration-300 z-40 ${selectedIds.size > 0 ? 'translate-y-0 opacity-100' : 'translate-y-24 opacity-0'}`}>
-              <div className="text-white font-bold text-sm border-r border-neutral-700 pr-4 mr-1">{selectedIds.size} Selected</div>
-              <button onClick={() => {
-                   const selected = companies.filter(c => selectedIds.has(c.id));
-                   const text = selected.map(c => `${c.name}\n${getShareLink(c)}`).join('\n\n');
-                   setBulkLinksText(text); setShowBulkLinksModal(true);
-              }} className="flex items-center gap-2 text-brand-grey hover:text-white hover:bg-neutral-800 px-3 py-1.5 rounded-lg text-sm font-medium"><Copy className="w-4 h-4"/> Links</button>
-              <button onClick={() => {
-                   const selected = companies.filter(c => selectedIds.has(c.id));
-                   if(selected.length) onBatchPrint(selected);
-              }} className="flex items-center gap-2 text-brand-grey hover:text-white hover:bg-neutral-800 px-3 py-1.5 rounded-lg text-sm font-medium"><Printer className="w-4 h-4"/> Print</button>
-              <button onClick={handleMasterClick} className="flex items-center gap-2 bg-brand-orange hover:bg-orange-600 text-white px-4 py-1.5 rounded-full text-sm font-bold shadow-lg"><Layers className="w-4 h-4"/> Group Report</button>
-              
-              {/* NEW SUMMARY BUTTON */}
-              <button onClick={handleResponseSummary} className="flex items-center gap-2 text-brand-grey hover:text-white hover:bg-neutral-800 px-3 py-1.5 rounded-lg text-sm font-medium"><FileBarChart className="w-4 h-4"/> Summary</button>
-              
-              <button onClick={() => setSelectedIds(new Set())} className="ml-2 p-1 hover:bg-neutral-800 rounded-full text-brand-grey hover:text-white"><X className="w-4 h-4" /></button>
-          </div>
-        </>
-      )}
+      {activeTab === 'companies' && renderCompaniesTab()}
 
       {/* --- TEMPLATES TAB --- */}
       {activeTab === 'templates' && isSuperAdmin && (
@@ -861,13 +993,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
                                       </span>
                                   </td>
                                   <td className="p-4 text-right flex justify-end gap-2">
-                                      <button onClick={() => {
-                                          setEditingUser(u);
-                                          setNewUserName(u.name); setNewUserEmail(u.email); setNewUserRole(u.role); setNewUserPassword(u.password || '');
-                                          setShowUserModal(true);
-                                      }} className="p-2 text-brand-grey hover:text-white bg-neutral-900 rounded-lg border border-neutral-700 hover:border-neutral-500"><Edit3 className="w-4 h-4" /></button>
+                                      <button onClick={() => handleEditUser(u)} className="p-2 text-brand-grey hover:text-white bg-neutral-900 rounded-lg border border-neutral-700 hover:border-neutral-500"><Edit3 className="w-4 h-4" /></button>
                                       {u.role !== 'SUPER_ADMIN' && (
-                                          <button onClick={() => setUserToDelete(u)} className="p-2 text-brand-grey hover:text-red-400 bg-neutral-900 rounded-lg border border-neutral-700 hover:border-red-900/50"><Trash2 className="w-4 h-4" /></button>
+                                          <button onClick={() => handleDeleteUser(u)} className="p-2 text-brand-grey hover:text-red-400 bg-neutral-900 rounded-lg border border-neutral-700 hover:border-red-900/50"><Trash2 className="w-4 h-4" /></button>
                                       )}
                                   </td>
                               </tr>
@@ -984,8 +1112,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
 
       {userToDelete && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-black/90 backdrop-blur-sm">
-              <div className="bg-neutral-900 p-8 rounded-2xl border border-neutral-700 w-full max-w-md shadow-2xl border-l-4 border-l-red-600">
-                  <div className="flex items-center gap-4 mb-4 text-red-500"><Shield className="w-8 h-8" /><h3 className="text-xl font-bold text-white">Delete User?</h3></div>
+              <div className="bg-neutral-900 p-8 rounded-2xl border border-neutral-700 w-full max-w-md shadow-2xl">
+                  <div className="flex items-center gap-4 mb-4 text-red-500"><AlertTriangle className="w-8 h-8" /><h3 className="text-xl font-bold text-white">Delete User?</h3></div>
                   <p className="text-brand-grey mb-6">Are you sure you want to delete access for <span className="font-bold text-white">{userToDelete.name}</span>?</p>
                   <div className="flex gap-3 justify-end"><button onClick={() => setUserToDelete(null)} className="px-6 py-3 bg-neutral-800 text-white rounded-xl font-bold">Cancel</button><button onClick={confirmDeleteUser} className="px-6 py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold">Delete User</button></div>
               </div>
@@ -1010,10 +1138,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
                  <h4 className="text-white font-bold mb-2">Report Logo</h4>
                  <div className="bg-brand-black border border-neutral-700 border-dashed rounded-xl p-8 text-center mb-4 relative">
                     {customLogo ? (
-                       <div className="relative inline-block"><img src={customLogo} alt="Preview" className="max-h-32 object-contain" /><button onClick={() => { removeLogo(); setCustomLogo(null); }} className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full"><X className="w-4 h-4"/></button></div>
+                       <div className="relative inline-block"><img src={customLogo} alt="Preview" className="max-h-32 object-contain" /><button onClick={handleRemoveLogo} className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full"><X className="w-4 h-4"/></button></div>
                     ) : <div className="text-neutral-500"><ImageIcon className="w-8 h-8 mx-auto mb-2 opacity-50"/>No logo set</div>}
                  </div>
-                 <label className="cursor-pointer w-full py-3 bg-brand-orange hover:bg-orange-600 text-white rounded-xl font-bold flex items-center justify-center gap-2"><Upload className="w-4 h-4"/> Upload<input type="file" accept="image/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) { const reader = new FileReader(); reader.onloadend = () => { saveLogo(reader.result as string); setCustomLogo(reader.result as string); }; reader.readAsDataURL(file); } }}/></label>
+                 <label className="cursor-pointer w-full py-3 bg-brand-orange hover:bg-orange-600 text-white rounded-xl font-bold flex items-center justify-center gap-2"><Upload className="w-4 h-4"/> Upload<input type="file" accept="image/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) handleSaveLogo(file); }}/></label>
               </div>
               <div className="mb-6 pt-4 border-t border-neutral-800">
                 <h4 className="text-white font-bold mb-2">Automation Webhook</h4>
@@ -1053,7 +1181,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
                                 <td className="p-3 text-white font-medium">{r.firstName} {r.lastName}</td>
                                 <td className="p-3 text-brand-grey text-sm">{r.email || '-'}</td>
                                 <td className="p-3 text-neutral-400 text-sm">{new Date(r.timestamp).toLocaleDateString()} {new Date(r.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
-                                <td className="p-3 text-right"><button onClick={() => setResponseToDelete({ companyId: managingCompany.id, responseId: r.id, name: `${r.firstName} ${r.lastName}` })} className="text-neutral-500 hover:text-red-400 p-1 transition-colors"><Trash2 className="w-4 h-4" /></button></td>
+                                <td className="p-3 text-right"><button onClick={() => handleDeleteResponse(managingCompany.id, r.id, `${r.firstName} ${r.lastName}`)} className="text-neutral-500 hover:text-red-400 p-1 transition-colors"><Trash2 className="w-4 h-4" /></button></td>
                              </tr>
                           ))}
                        </tbody>
@@ -1137,20 +1265,36 @@ const TemplateEditor: React.FC<{
   onCancel: () => void;
   onDuplicate: (t: AssessmentTemplate) => void;
 }> = ({ template, onSave, onCancel, onDuplicate }) => {
-  const shouldAssumeLongText = useMemo(() => {
-    return resolveAssessmentType(template) === 'long-form';
-  }, [template]);
-
-  const enforceLongTextQuestions = (current: AssessmentTemplate): AssessmentTemplate => {
-    if (!shouldAssumeLongText) return current;
-    return normalizeNonBltTemplate(current);
+  const normalizeTemplateQuestions = (
+    current: AssessmentTemplate,
+    targetType?: AssessmentTemplate['assessmentType']
+  ): AssessmentTemplate => {
+    const assessmentType = targetType ?? resolveAssessmentType(current);
+    const questionType = assessmentType === 'long-form' ? 'text' : 'rating';
+    return {
+      ...current,
+      assessmentType,
+      categories: current.categories.map(category => ({
+        ...category,
+        questions: category.questions.map(question => ({
+          ...question,
+          type: questionType
+        }))
+      }))
+    };
   };
 
-  const [data, setData] = useState<AssessmentTemplate>(() => enforceLongTextQuestions(template));
+  const [data, setData] = useState<AssessmentTemplate>(() => normalizeTemplateQuestions(template));
 
   useEffect(() => {
-    setData(enforceLongTextQuestions(template));
-  }, [template, shouldAssumeLongText]);
+    setData(normalizeTemplateQuestions(template));
+  }, [template]);
+
+  const currentAssessmentType = useMemo(() => {
+    return resolveAssessmentType(data);
+  }, [data]);
+
+  const isLongForm = currentAssessmentType === 'long-form';
 
   const handleCatNameChange = (catIdx: number, val: string) => {
     const newCats = [...data.categories];
@@ -1160,8 +1304,10 @@ const TemplateEditor: React.FC<{
   const handleQChange = (catIdx: number, qIdx: number, val: string) => {
     const newCats = [...data.categories];
     newCats[catIdx].questions[qIdx].text = val;
-    if (shouldAssumeLongText) newCats[catIdx].questions[qIdx].type = 'text';
     setData({ ...data, categories: newCats });
+  };
+  const handleAssessmentTypeChange = (nextType: AssessmentTemplate['assessmentType']) => {
+    setData(prev => normalizeTemplateQuestions({ ...prev, assessmentType: nextType }, nextType));
   };
   const addQuestion = (catIdx: number) => {
     const newCats = [...data.categories];
@@ -1169,7 +1315,7 @@ const TemplateEditor: React.FC<{
     newCats[catIdx].questions.push({
       id: newQId,
       text: "New Question",
-      ...(shouldAssumeLongText ? { type: 'text' as const } : {})
+      type: isLongForm ? 'text' : 'rating'
     });
     setData({ ...data, categories: newCats });
   };
@@ -1179,7 +1325,7 @@ const TemplateEditor: React.FC<{
     const newQuestion = {
       id: `q-${newCatId}-0`,
       text: "New Question",
-      ...(shouldAssumeLongText ? { type: 'text' as const } : {})
+      type: isLongForm ? 'text' : 'rating'
     };
     setData({ ...data, categories: [...data.categories, { id: newCatId, name: "New Category", questions: [newQuestion] }] });
   };
@@ -1189,13 +1335,26 @@ const TemplateEditor: React.FC<{
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-black/90 backdrop-blur-sm">
       <div className="bg-neutral-900 w-full max-w-4xl h-[90vh] rounded-2xl border border-neutral-700 flex flex-col shadow-2xl">
         <div className="p-6 border-b border-neutral-700 flex justify-between items-center">
-          <input className="bg-transparent text-2xl font-bold text-white border-b border-transparent focus:border-brand-orange outline-none" value={data.name} onChange={e => setData({...data, name: e.target.value})} />
+          <div className="flex flex-col gap-2">
+            <input className="bg-transparent text-2xl font-bold text-white border-b border-transparent focus:border-brand-orange outline-none" value={data.name} onChange={e => setData({...data, name: e.target.value})} />
+            <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+              Response Type
+              <select
+                className="ml-2 bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-1 text-xs text-white"
+                value={currentAssessmentType}
+                onChange={e => handleAssessmentTypeChange(e.target.value as AssessmentTemplate['assessmentType'])}
+              >
+                <option value="blt">Rating (0-4 scale)</option>
+                <option value="long-form">Long-form text</option>
+              </select>
+            </label>
+          </div>
           <div className="flex gap-2">
             <button onClick={onCancel} className="px-4 py-2 text-neutral-400 hover:text-white">Cancel</button>
-            <button onClick={() => onDuplicate(enforceLongTextQuestions(data))} className="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg font-bold flex items-center gap-2">
+            <button onClick={() => onDuplicate(normalizeTemplateQuestions(data))} className="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg font-bold flex items-center gap-2">
               <Copy className="w-4 h-4" /> Duplicate
             </button>
-            <button onClick={() => onSave(enforceLongTextQuestions(data))} className="px-6 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg font-bold">Save Template</button>
+            <button onClick={() => onSave(normalizeTemplateQuestions(data))} className="px-6 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg font-bold">Save Template</button>
           </div>
         </div>
         <div className="flex-1 overflow-y-auto p-6 space-y-8">
@@ -1221,3 +1380,4 @@ const TemplateEditor: React.FC<{
 };
 
 export default AdminDashboard;
+

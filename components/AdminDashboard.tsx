@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Company, UserAnswers, ParticipantResponse, AssessmentTemplate, Category, User, UserRole } from '../types';
+import { Company, UserAnswers, ParticipantResponse, AssessmentTemplate, Category, User, UserRole, QuestionType } from '../types';
 import { getCompanies, createCompany, saveCompany, deleteCompany, decodeResponse, saveLogo, getLogo, removeLogo, getTemplates, saveTemplate, deleteTemplate, addResponseToCompany, seedTemplates, getUsers, saveUser, deleteUser, updateUserPassword, getSettings, saveSettings } from '../services/storage';
 import { isConfigured } from '../services/firebaseConfig';
 import { getAssessmentData, generateAssessmentTemplate } from '../services/geminiService';
@@ -485,7 +485,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
             case 'date-asc': return a.createdAt - b.createdAt;
             case 'name-asc': return a.name.localeCompare(b.name);
             case 'name-desc': return b.name.localeCompare(a.name);
-            case 'resp-desc': return b.responses.length - b.responses.length;
+            case 'resp-desc': return b.responses.length - a.responses.length;
             case 'resp-asc': return a.responses.length - b.responses.length;
             default: return (b.lastActivity || 0) - (a.lastActivity || 0);
         }
@@ -527,21 +527,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
     setActiveCompanyId(company.id);
     setShowImportModal(true);
   };
-
-  const toggleTemplateStatus = async (template: AssessmentTemplate) => {
-    const updated = { ...template, archived: !template.archived };
-    await saveTemplate(updated);
-    await refreshData();
-  };
-
-  const toggleCloudSync = async () => {
-      await refreshData();
-      if (!isCloud) {
-          alert("Cloud sync is not configured.");
-      }
-  };
-
-  const isCompanySelected = (id: string) => selectedIds.has(id);
 
   const handleBulkDelete = async () => {
       if (!selectedIds.size) return;
@@ -606,75 +591,27 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
       setShowSettingsModal(true);
   };
 
-  const handleAddResponse = async (company: Company) => {
-      setActiveCompanyId(company.id);
-      setShowImportModal(true);
+  const handleResendInvite = async (u: User) => {
+      if (!u.password) return;
+      await sendUserInvite(u.name, u.email, u.role, u.password);
+      alert("Invite re-sent.");
   };
 
-  const handleDuplicateResponse = async (company: Company, response: ParticipantResponse) => {
-      const newResponse = { ...response, id: Date.now().toString(36) + Math.random().toString(36).substr(2), timestamp: Date.now() };
-      await addResponseToCompany(company.id, newResponse);
-      await refreshData();
-  };
-
-  const handleDeleteResponse = (companyId: string, responseId: string, name: string) => {
-      setResponseToDelete({ companyId, responseId, name });
-  };
-
-  const handleDeleteUser = (user: User) => {
-      setUserToDelete(user);
-  };
-
-  const handleDeleteTemplate = (template: AssessmentTemplate) => {
-      setTemplateToDelete(template);
-  };
-
-  const handleEditUser = (user: User) => {
-      setEditingUser(user);
-      setNewUserName(user.name);
-      setNewUserEmail(user.email);
-      setNewUserRole(user.role);
-      setNewUserPassword(user.password || '');
+  const handleEditUser = (u: User) => {
+      setEditingUser(u);
+      setNewUserName(u.name);
+      setNewUserEmail(u.email);
+      setNewUserRole(u.role);
+      setNewUserPassword(u.password || '');
       setShowUserModal(true);
   };
 
-  const handleEditTemplate = (template: AssessmentTemplate) => {
-      setEditingTemplate(template);
+  const handleDuplicateTemplateClick = (t: AssessmentTemplate) => {
+      handleDuplicateTemplate(t);
   };
 
-  const handleDuplicateTemplateFromList = async (template: AssessmentTemplate) => {
-      await handleDuplicateTemplate(template);
-  };
-
-  const handleUpdateTemplate = async (template: AssessmentTemplate) => {
-      await handleSaveTemplate(template);
-  };
-
-  const handleCloseTemplateEditor = () => {
-      setEditingTemplate(null);
-  };
-
-  const handleNewTemplate = async () => {
-      await handleCreateTemplate();
-  };
-
-  const handleGenerateTemplate = async (e: React.FormEvent) => {
-      await handleGenerateAI(e);
-  };
-
-  const handleSaveLogo = (file: File) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-          const url = reader.result as string;
-          saveLogo(url);
-          setCustomLogo(url);
-      };
-      reader.readAsDataURL(file);
-  };
-
-  const handleRemoveLogo = () => {
-      removeLogo();
-      setCustomLogo(null);
+  const handleEditTemplateClick = (t: AssessmentTemplate) => {
+      setEditingTemplate(t);
   };
 
   const renderCompaniesTab = () => (
@@ -847,7 +784,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
               <div className="flex items-center gap-2">
                   <button onClick={() => handleViewReport(company)} className="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg font-bold flex items-center gap-2"><BarChart2 className="w-4 h-4" /> View Report</button>
                   <button onClick={() => startRenamingCompany(company)} className="px-3 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg"><Edit3 className="w-4 h-4"/></button>
-                  <button onClick={() => handleAddResponse(company)} className="px-3 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg"><UserPlus className="w-4 h-4"/></button>
+                  <button onClick={() => handleManualEntry(company)} className="px-3 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg"><UserPlus className="w-4 h-4"/></button>
                   <button onClick={() => handleSimulateData(company)} className="px-3 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg"><Terminal className="w-4 h-4"/></button>
                   <button onClick={() => setCompanyToDelete(company)} className="px-3 py-2 bg-neutral-700 hover:bg-red-900/50 text-brand-grey hover:text-red-400 rounded-lg"><Trash2 className="w-4 h-4"/></button>
               </div>
@@ -924,6 +861,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
         )}
       </div>
 
+      {/* --- COMPANIES TAB --- */}
       {activeTab === 'companies' && renderCompaniesTab()}
 
       {/* --- TEMPLATES TAB --- */}
@@ -949,8 +887,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
                     <div className="text-sm text-brand-grey mb-4">{t.categories.length} Categories • {t.categories.reduce((acc, cat) => acc + cat.questions.length, 0)} Questions</div>
                   </div>
                   <div className="flex gap-2 mt-4 pt-4 border-t border-neutral-700">
-                     <button onClick={() => setEditingTemplate(t)} className="flex-1 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg font-medium text-sm transition-colors flex items-center justify-center gap-2"><Edit3 className="w-4 h-4" /> Edit</button>
-                     <button onClick={() => handleDuplicateTemplate(t)} className="flex-1 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg font-medium text-sm transition-colors flex items-center justify-center gap-2"><Copy className="w-4 h-4" /> Duplicate</button>
+                     <button onClick={() => handleEditTemplateClick(t)} className="flex-1 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg font-medium text-sm transition-colors flex items-center justify-center gap-2"><Edit3 className="w-4 h-4" /> Edit</button>
+                     <button onClick={() => handleDuplicateTemplateClick(t)} className="flex-1 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg font-medium text-sm transition-colors flex items-center justify-center gap-2"><Copy className="w-4 h-4" /> Duplicate</button>
                      <button onClick={() => setTemplateToDelete(t)} className="px-3 py-2 bg-neutral-700 hover:bg-red-900/50 text-brand-grey hover:text-red-400 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
                   </div>
                </div>
@@ -994,8 +932,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
                                   </td>
                                   <td className="p-4 text-right flex justify-end gap-2">
                                       <button onClick={() => handleEditUser(u)} className="p-2 text-brand-grey hover:text-white bg-neutral-900 rounded-lg border border-neutral-700 hover:border-neutral-500"><Edit3 className="w-4 h-4" /></button>
+                                      <button onClick={() => handleResendInvite(u)} className="p-2 text-brand-grey hover:text-white bg-neutral-900 rounded-lg border border-neutral-700 hover:border-neutral-500"><Mail className="w-4 h-4" /></button>
                                       {u.role !== 'SUPER_ADMIN' && (
-                                          <button onClick={() => handleDeleteUser(u)} className="p-2 text-brand-grey hover:text-red-400 bg-neutral-900 rounded-lg border border-neutral-700 hover:border-red-900/50"><Trash2 className="w-4 h-4" /></button>
+                                          <button onClick={() => setUserToDelete(u)} className="p-2 text-brand-grey hover:text-red-400 bg-neutral-900 rounded-lg border border-neutral-700 hover:border-red-900/50"><Trash2 className="w-4 h-4" /></button>
                                       )}
                                   </td>
                               </tr>
@@ -1138,10 +1077,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
                  <h4 className="text-white font-bold mb-2">Report Logo</h4>
                  <div className="bg-brand-black border border-neutral-700 border-dashed rounded-xl p-8 text-center mb-4 relative">
                     {customLogo ? (
-                       <div className="relative inline-block"><img src={customLogo} alt="Preview" className="max-h-32 object-contain" /><button onClick={handleRemoveLogo} className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full"><X className="w-4 h-4"/></button></div>
+                       <div className="relative inline-block"><img src={customLogo} alt="Preview" className="max-h-32 object-contain" /><button onClick={() => { removeLogo(); setCustomLogo(null); }} className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full"><X className="w-4 h-4"/></button></div>
                     ) : <div className="text-neutral-500"><ImageIcon className="w-8 h-8 mx-auto mb-2 opacity-50"/>No logo set</div>}
                  </div>
-                 <label className="cursor-pointer w-full py-3 bg-brand-orange hover:bg-orange-600 text-white rounded-xl font-bold flex items-center justify-center gap-2"><Upload className="w-4 h-4"/> Upload<input type="file" accept="image/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) handleSaveLogo(file); }}/></label>
+                 <label className="cursor-pointer w-full py-3 bg-brand-orange hover:bg-orange-600 text-white rounded-xl font-bold flex items-center justify-center gap-2"><Upload className="w-4 h-4"/> Upload<input type="file" accept="image/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) { const reader = new FileReader(); reader.onloadend = () => { saveLogo(reader.result as string); setCustomLogo(reader.result as string); }; reader.readAsDataURL(file); } }}/></label>
               </div>
               <div className="mb-6 pt-4 border-t border-neutral-800">
                 <h4 className="text-white font-bold mb-2">Automation Webhook</h4>
@@ -1181,7 +1120,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
                                 <td className="p-3 text-white font-medium">{r.firstName} {r.lastName}</td>
                                 <td className="p-3 text-brand-grey text-sm">{r.email || '-'}</td>
                                 <td className="p-3 text-neutral-400 text-sm">{new Date(r.timestamp).toLocaleDateString()} {new Date(r.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
-                                <td className="p-3 text-right"><button onClick={() => handleDeleteResponse(managingCompany.id, r.id, `${r.firstName} ${r.lastName}`)} className="text-neutral-500 hover:text-red-400 p-1 transition-colors"><Trash2 className="w-4 h-4" /></button></td>
+                                <td className="p-3 text-right"><button onClick={() => setResponseToDelete({ companyId: managingCompany.id, responseId: r.id, name: `${r.firstName} ${r.lastName}` })} className="text-neutral-500 hover:text-red-400 p-1 transition-colors"><Trash2 className="w-4 h-4" /></button></td>
                              </tr>
                           ))}
                        </tbody>
@@ -1270,7 +1209,7 @@ const TemplateEditor: React.FC<{
     targetType?: AssessmentTemplate['assessmentType']
   ): AssessmentTemplate => {
     const assessmentType = targetType ?? resolveAssessmentType(current);
-    const questionType = assessmentType === 'long-form' ? 'text' : 'rating';
+    const questionType: QuestionType = assessmentType === 'long-form' ? 'text' : 'rating';
     return {
       ...current,
       assessmentType,
@@ -1312,20 +1251,22 @@ const TemplateEditor: React.FC<{
   const addQuestion = (catIdx: number) => {
     const newCats = [...data.categories];
     const newQId = `q-${catIdx}-${Date.now()}`;
+    const newQuestionType: QuestionType = isLongForm ? 'text' : 'rating';
     newCats[catIdx].questions.push({
       id: newQId,
       text: "New Question",
-      type: isLongForm ? 'text' : 'rating'
+      type: newQuestionType
     });
     setData({ ...data, categories: newCats });
   };
   const removeQuestion = (catIdx: number, qIdx: number) => { const newCats = [...data.categories]; newCats[catIdx].questions.splice(qIdx, 1); setData({ ...data, categories: newCats }); };
   const addCategory = () => {
     const newCatId = `cat-${Date.now()}`;
+    const newQuestionType: QuestionType = isLongForm ? 'text' : 'rating';
     const newQuestion = {
       id: `q-${newCatId}-0`,
       text: "New Question",
-      type: isLongForm ? 'text' : 'rating'
+      type: newQuestionType
     };
     setData({ ...data, categories: [...data.categories, { id: newCatId, name: "New Category", questions: [newQuestion] }] });
   };

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { AssessmentData, Company, ParticipantResponse, User } from './types';
 import { getAssessmentData } from './services/geminiService';
 import { getCompanies, saveCompany, addResponseToCompany, markCompanyViewed, getSettings, createCompany } from './services/storage'; 
-import { getCurrentUser, logout } from './services/authService';
+import { logout, onAuthChange } from './services/authService';
 import { triggerAutomationWebhook } from './services/webhookService';
 import LoadingSpinner from './components/LoadingSpinner';
 import TeamReport from './components/TeamReport';
@@ -130,13 +130,7 @@ const App: React.FC = () => {
              setViewMode('PARTICIPANT');
         }
       } else {
-        const currentUser = getCurrentUser();
-        if (currentUser) {
-          setUser(currentUser);
-          setViewMode('DASHBOARD');
-        } else {
-          setViewMode('LOGIN');
-        }
+        setViewMode('LOGIN');
       }
       setIsLoading(false);
     };
@@ -144,13 +138,25 @@ const App: React.FC = () => {
     loadData();
   }, []);
 
+  useEffect(() => {
+    const unsubscribe = onAuthChange((nextUser) => {
+      setUser(nextUser);
+      setViewMode((currentMode) => {
+        const isAuthDrivenMode = currentMode === 'LOGIN' || currentMode === 'DASHBOARD';
+        if (!isAuthDrivenMode) return currentMode;
+        return nextUser ? 'DASHBOARD' : 'LOGIN';
+      });
+    });
+    return unsubscribe;
+  }, []);
+
   const handleLoginSuccess = (loggedInUser: User) => {
     setUser(loggedInUser);
     setViewMode('DASHBOARD');
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     setUser(null);
     setViewMode('LOGIN');
   };
@@ -246,7 +252,7 @@ const App: React.FC = () => {
             <div className="absolute top-4 left-4 z-50"><button onClick={handleBackToDashboard} className="px-4 py-2 bg-slate-800 text-white rounded-lg shadow-lg font-bold text-xs hover:bg-slate-700">Cancel Entry</button></div>
             <ParticipantView companyName={manualEntryCompany.name} assessmentData={assessmentData} onSubmit={handleManualEntrySave} />
         </div>
-      );
+    );
   }
 
   if (viewMode === 'SINGLE_REPORT' && reportCompany && assessmentData) return <TeamReport companyName={reportCompany.name} assessmentData={assessmentData} allResponses={reportCompany.responses} onRestart={handleBackToDashboard} mode="single" />;
@@ -259,4 +265,3 @@ const App: React.FC = () => {
 };
 
 export default App;
-

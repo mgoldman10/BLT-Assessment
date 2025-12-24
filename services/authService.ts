@@ -1,4 +1,3 @@
-
 import { User, UserRole } from "../types";
 import { getUsers } from "./storage";
 
@@ -41,4 +40,9 @@ export const hasPermission = (user: User | null, requiredRole: UserRole): boolea
   if (!user) return false;
   if (user.role === 'SUPER_ADMIN') return true;
   return user.role === requiredRole;
+};
+
+// New helper to verify password securely (conceptually)
+export const verifyPassword = (user: User, inputPassword: string): boolean => {
+    return user.password === inputPassword;
 };

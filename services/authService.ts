@@ -1,47 +1,44 @@
-import {
-  signInWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged,
-  User as FirebaseUser,
-} from "firebase/auth";
-import { auth } from "./firebase";
-import { User, UserRole } from "../types";
 
-// Map Firebase user -> app User
-const mapFirebaseUser = (firebaseUser: FirebaseUser): User => {
-  return {
-    id: firebaseUser.uid,
-    email: firebaseUser.email ?? "",
-    name: firebaseUser.displayName ?? firebaseUser.email ?? "User",
-    role: "ADMIN" as UserRole, // adjust if you have role claims or DB mapping
-    password: "", // not used with Firebase auth
-  };
-};
+import { User, UserRole } from "../types";
+import { getUsers } from "./storage";
+
+const SESSION_KEY = 'breakthrough_auth_session';
 
 export const login = async (email: string, password: string): Promise<User | null> => {
-  const credential = await signInWithEmailAndPassword(auth, email, password);
-  return mapFirebaseUser(credential.user);
+  // Simulate network delay
+  await new Promise(resolve => setTimeout(resolve, 800));
+
+  try {
+      // Get users from storage (DB or Local)
+      const users = await getUsers();
+      const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+      
+      if (user && user.password === password) {
+          localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+          return user;
+      }
+  } catch (e) {
+      console.error("Login error", e);
+  }
+  
+  return null;
 };
 
-export const logout = async (): Promise<void> => {
-  await signOut(auth);
+export const logout = (): void => {
+  localStorage.removeItem(SESSION_KEY);
 };
 
-export const getCurrentUser = (): User | null> => {
-  const current = auth.currentUser;
-  return current ? mapFirebaseUser(current) : null;
+export const getCurrentUser = (): User | null => {
+  try {
+    const json = localStorage.getItem(SESSION_KEY);
+    return json ? JSON.parse(json) : null;
+  } catch {
+    return null;
+  }
 };
-
-const onAuthChange = (callback: (user: User | null) => void) => {
-  return onAuthStateChanged(auth, (firebaseUser) => {
-    callback(firebaseUser ? mapFirebaseUser(firebaseUser) : null);
-  });
-};
-
-export { onAuthChange };
 
 export const hasPermission = (user: User | null, requiredRole: UserRole): boolean => {
   if (!user) return false;
-  if (user.role === "SUPER_ADMIN") return true;
+  if (user.role === 'SUPER_ADMIN') return true;
   return user.role === requiredRole;
 };

@@ -75,7 +75,7 @@ export interface User {
   name: string;
   email: string;
   role: UserRole;
-  password?: string;
+  // password removed - managed by Firebase Auth
 }
 
 export const SCALE_LABELS = {

@@ -1,14 +1,20 @@
 import { Company, ParticipantResponse, AssessmentTemplate, User, AppSettings } from '../types';
-import { db, isConfigured } from './firebaseConfig';
-import { 
-  collection, 
-  doc, 
-  getDocs, 
-  setDoc, 
-  deleteDoc, 
+import { db, isConfigured, auth, getSecondaryAuth } from './firebaseConfig';
+import {
+  collection,
+  doc,
+  getDocs,
+  setDoc,
+  deleteDoc,
   getDoc,
-  updateDoc
+  updateDoc,
+  deleteField
 } from "firebase/firestore/lite";
+import {
+  createUserWithEmailAndPassword,
+  updatePassword,
+  signInWithEmailAndPassword
+} from 'firebase/auth';
 
 // --- Collections ---
 const COMPANIES_COL = 'companies';
@@ -28,9 +34,11 @@ const DEFAULT_ADMIN: User = {
     id: 'super-admin-01',
     name: 'Mike Goldman',
     email: 'mike@mike-goldman.com',
-    role: 'SUPER_ADMIN',
-    password: 'breakthrough'
+    role: 'SUPER_ADMIN'
 };
+
+// Default password for migration/seeding (temporary)
+const DEFAULT_ADMIN_PASSWORD = 'breakthrough';
 
 // --- Default Templates ---
 const SEED_TEMPLATES: AssessmentTemplate[] = [
@@ -273,22 +281,19 @@ export const deleteTemplate = async (id: string): Promise<void> => {
 // --- User Management ---
 
 export const seedUsers = async (): Promise<void> => {
-    if (isConfigured() && db) {
-        try {
-            const ref = doc(db, USERS_COL, DEFAULT_ADMIN.id);
-            const snap = await getDoc(ref);
-            if (!snap.exists()) {
-                await setDoc(ref, DEFAULT_ADMIN);
-            }
-        } catch (e) {
-            console.error("Firebase user seeding failed", e);
-        }
-    } else {
+    // DISABLED: After Firebase Auth migration, users are managed via Firebase Auth
+    // The default admin should be created manually in Firebase Console
+    // Keeping this function for backward compatibility but it does nothing
+
+    // Only seed in localStorage mode (for development without Firebase)
+    if (!isConfigured()) {
         const users = getLocalData<User>(LOCAL_USERS_KEY);
         if (users.length === 0) {
             setLocalData(LOCAL_USERS_KEY, [DEFAULT_ADMIN]);
         }
     }
+
+    // Do NOT auto-create Firestore users - they should come from Firebase Auth
 }
 
 export const getUsers = async (): Promise<User[]> => {
@@ -307,37 +312,112 @@ export const getUsers = async (): Promise<User[]> => {
     return local.length > 0 ? local : [DEFAULT_ADMIN];
 };
 
+// Helper: Create Firebase Auth user and Firestore metadata
+export const createFirebaseUser = async (email: string, password: string, name: string, role: string): Promise<string> => {
+    if (!auth || !db) throw new Error("Firebase not configured");
+
+    // Verify admin is logged in on primary auth instance
+    const currentAdmin = auth.currentUser;
+    if (!currentAdmin) {
+        throw new Error("You must be logged in as an admin to create users");
+    }
+
+    // Get secondary auth instance for user creation
+    // This prevents logging out the admin when creating a new user
+    const secondaryAuth = getSecondaryAuth();
+    if (!secondaryAuth) throw new Error("Secondary auth not configured");
+
+    // Step 1: Create Firebase Auth account on secondary instance
+    // This won't affect the admin's session on the primary instance
+    const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+    const uid = userCredential.user.uid;
+
+    // Step 2: Create Firestore metadata document
+    // The Firestore rules allow authenticated users to create their own document
+    const userMetadata: User = {
+        id: uid,
+        name,
+        email,
+        role: role as 'SUPER_ADMIN' | 'ADMIN'
+    };
+    await setDoc(doc(db, USERS_COL, uid), userMetadata);
+
+    // Step 3: Sign out from secondary auth (cleanup)
+    await secondaryAuth.signOut();
+
+    // Admin remains logged in on primary auth instance!
+    return uid;
+};
+
+// Helper: Update Firebase Auth user password
+export const updateFirebaseUserPassword = async (email: string, currentPassword: string, newPassword: string): Promise<void> => {
+    if (!auth) throw new Error("Firebase Auth not configured");
+
+    // Sign in temporarily to get user object (admin operation)
+    const userCredential = await signInWithEmailAndPassword(auth, email, currentPassword);
+    await updatePassword(userCredential.user, newPassword);
+};
+
+// Helper: Delete Firebase Auth user
+export const deleteFirebaseUser = async (uid: string): Promise<void> => {
+    if (!auth) throw new Error("Firebase Auth not configured");
+
+    // Note: This requires Firebase Admin SDK or special permissions
+    // For now, we'll just delete Firestore data
+    // TODO: Use Firebase Admin SDK on backend to delete auth accounts
+    console.warn("Firebase Auth user deletion requires Admin SDK. Only deleting Firestore metadata.");
+};
+
 export const saveUser = async (user: User): Promise<void> => {
+    // Save metadata to Firestore (no password stored)
+    const userMetadata: User = {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role
+    };
+
     if (isConfigured() && db) {
-        await setDoc(doc(db, USERS_COL, user.id), user);
+        await setDoc(doc(db, USERS_COL, user.id), userMetadata);
         return;
     }
     const local = getLocalData<User>(LOCAL_USERS_KEY);
     const idx = local.findIndex(u => u.id === user.id);
-    if (idx >= 0) local[idx] = user;
-    else local.push(user);
+    if (idx >= 0) local[idx] = userMetadata;
+    else local.push(userMetadata);
     setLocalData(LOCAL_USERS_KEY, local);
 };
 
 export const updateUserPassword = async (userId: string, newPassword: string): Promise<void> => {
-    if (isConfigured() && db) {
-        const ref = doc(db, USERS_COL, userId);
-        await updateDoc(ref, { password: newPassword });
-        return;
-    }
-    const local = getLocalData<User>(LOCAL_USERS_KEY);
-    const idx = local.findIndex(u => u.id === userId);
-    if (idx >= 0) {
-        local[idx].password = newPassword;
-        setLocalData(LOCAL_USERS_KEY, local);
+    // NOTE: Password updates should now be done via Firebase Auth
+    // This function is kept for backwards compatibility but does nothing
+    // Use updateFirebaseUserPassword() or Firebase Auth SDK directly
+    console.warn("updateUserPassword is deprecated. Use Firebase Auth to update passwords.");
+
+    // For local storage fallback (non-Firebase mode)
+    if (!isConfigured()) {
+        const local = getLocalData<User>(LOCAL_USERS_KEY);
+        const idx = local.findIndex(u => u.id === userId);
+        if (idx >= 0) {
+            // Can't store password anymore
+            console.warn("Password storage not supported in localStorage mode with Firebase Auth");
+        }
     }
 };
 
 export const deleteUser = async (id: string): Promise<void> => {
+    // Delete Firestore metadata
     if (isConfigured() && db) {
         await deleteDoc(doc(db, USERS_COL, id));
+
+        // NOTE: Deleting Firebase Auth users requires Firebase Admin SDK (server-side)
+        // Client-side Firebase Auth can only delete the currently authenticated user
+        // For production, implement a Cloud Function or backend API to delete auth users
+        console.warn(`Deleted Firestore metadata for user ${id}. Firebase Auth account still exists and should be deleted via Admin SDK.`);
         return;
     }
+
+    // LocalStorage fallback
     const local = getLocalData<User>(LOCAL_USERS_KEY);
     setLocalData(LOCAL_USERS_KEY, local.filter(u => u.id !== id));
 };

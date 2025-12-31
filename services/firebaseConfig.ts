@@ -1,5 +1,6 @@
-import { initializeApp } from "firebase/app";
+import { initializeApp, FirebaseApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore/lite";
+import { getAuth, Auth } from "firebase/auth";
 
 // Use Environment Variables instead of hardcoding keys
 // This prevents Netlify "Secrets Scanning" errors
@@ -20,3 +21,22 @@ export const isConfigured = (): boolean => {
 // Initialize Firebase only if configured
 const app = isConfigured() ? initializeApp(firebaseConfig) : undefined;
 export const db = app ? getFirestore(app) : undefined;
+
+// Primary auth instance (for main user session)
+export const auth: Auth | undefined = app ? getAuth(app) : undefined;
+
+// Secondary Firebase app for user creation (doesn't affect primary session)
+// This allows admins to create users without being logged out
+let secondaryApp: FirebaseApp | undefined;
+let secondaryAuth: Auth | undefined;
+
+export const getSecondaryAuth = (): Auth | undefined => {
+  if (!isConfigured()) return undefined;
+
+  if (!secondaryApp) {
+    secondaryApp = initializeApp(firebaseConfig, 'secondary');
+    secondaryAuth = getAuth(secondaryApp);
+  }
+
+  return secondaryAuth;
+};

@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { AssessmentData, Company, ParticipantResponse, User } from './types';
 import { getAssessmentData } from './services/geminiService';
-import { getCompanies, saveCompany, addResponseToCompany, markCompanyViewed, getSettings, createCompany } from './services/storage'; 
-import { getCurrentUser, logout } from './services/authService';
+import { getCompanies, saveCompany, addResponseToCompany, markCompanyViewed, getSettings, createCompany } from './services/storage';
+import { logout, setupSessionTimeout, cleanupSessionTimeout } from './services/authService';
+import { auth, db } from './services/firebaseConfig';
+import { onAuthStateChanged } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore/lite';
 import { triggerAutomationWebhook } from './services/webhookService';
 import LoadingSpinner from './components/LoadingSpinner';
 import TeamReport from './components/TeamReport';
@@ -129,19 +132,73 @@ const App: React.FC = () => {
              setParticipantCompany(companyName || '');
              setViewMode('PARTICIPANT');
         }
-      } else {
-        const currentUser = getCurrentUser();
-        if (currentUser) {
-          setUser(currentUser);
-          setViewMode('DASHBOARD');
-        } else {
-          setViewMode('LOGIN');
-        }
       }
-      setIsLoading(false);
+      // For admin access, Firebase Auth listener will handle loading state
     };
 
     loadData();
+  }, []);
+
+  // Firebase Auth State Listener
+  useEffect(() => {
+    if (!auth) {
+      setIsLoading(false);
+      return;
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser && db) {
+        // User is signed in, fetch metadata from Firestore
+        try {
+          const userDocRef = doc(db, 'users', firebaseUser.uid);
+          const userDoc = await getDoc(userDocRef);
+
+          if (userDoc.exists()) {
+            const userData = userDoc.data() as User;
+            const fullUser: User = {
+              id: firebaseUser.uid,
+              name: userData.name,
+              email: firebaseUser.email || userData.email,
+              role: userData.role
+            };
+            setUser(fullUser);
+
+            // Setup session timeout
+            setupSessionTimeout(handleLogout);
+
+            // Only switch to dashboard if not in participant/report modes
+            if (!window.location.search.includes('company') &&
+                !window.location.search.includes('mode=')) {
+              setViewMode('DASHBOARD');
+            }
+          } else {
+            console.error('User metadata not found');
+            setUser(null);
+            setViewMode('LOGIN');
+          }
+        } catch (error) {
+          console.error('Error fetching user metadata:', error);
+          setUser(null);
+          setViewMode('LOGIN');
+        }
+      } else {
+        // User is signed out
+        setUser(null);
+        cleanupSessionTimeout();
+
+        // Only show login if not in participant/report modes
+        if (!window.location.search.includes('company') &&
+            !window.location.search.includes('mode=')) {
+          setViewMode('LOGIN');
+        }
+      }
+
+      // Auth check complete - stop loading
+      setIsLoading(false);
+    });
+
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
   }, []);
 
   const handleLoginSuccess = (loggedInUser: User) => {
@@ -149,8 +206,8 @@ const App: React.FC = () => {
     setViewMode('DASHBOARD');
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     setUser(null);
     setViewMode('LOGIN');
   };

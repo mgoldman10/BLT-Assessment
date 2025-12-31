@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Company, UserAnswers, ParticipantResponse, AssessmentTemplate, Category, User, UserRole } from '../types';
-import { getCompanies, createCompany, saveCompany, deleteCompany, decodeResponse, saveLogo, getLogo, removeLogo, getTemplates, saveTemplate, deleteTemplate, addResponseToCompany, seedTemplates, getUsers, saveUser, deleteUser, updateUserPassword, getSettings, saveSettings } from '../services/storage';
+import { getCompanies, createCompany, saveCompany, deleteCompany, decodeResponse, saveLogo, getLogo, removeLogo, getTemplates, saveTemplate, deleteTemplate, addResponseToCompany, seedTemplates, getUsers, saveUser, deleteUser, updateUserPassword, getSettings, saveSettings, createFirebaseUser } from '../services/storage';
 import { isConfigured } from '../services/firebaseConfig';
 import { getAssessmentData, generateAssessmentTemplate } from '../services/geminiService';
-import { logout, verifyPassword } from '../services/authService';
+import { logout, verifyPassword, changeUserPassword } from '../services/authService';
 import { sendUserInvite } from '../services/emailService';
 import { Plus, BarChart2, Trash2, Users, Terminal, Share2, X, Search, Calendar, Copy, Check, Layers, Printer, UserPlus, Edit3, Settings, Upload, Image as ImageIcon, AlertTriangle, FileText, LayoutList, Tag, Filter, ArrowUpDown, RotateCcw, RefreshCw, Cloud, HardDrive, Sparkles, Loader2, LogOut, ChevronDown, CheckSquare, Square, Shield, Mail, Lock, Clock, Key, FileBarChart } from 'lucide-react';
 
@@ -163,13 +163,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
           alert("New passwords do not match.");
           return;
       }
-      if (!verifyPassword(user, currentPassword)) {
-          alert("Current password incorrect.");
-          return;
+
+      try {
+          // Use Firebase Auth to change password
+          await changeUserPassword(currentPassword, newPasswordInput);
+          alert("Password updated successfully!");
+          setShowChangePasswordModal(false);
+          setCurrentPassword(''); setNewPasswordInput(''); setConfirmPasswordInput('');
+      } catch (error: any) {
+          console.error("Password change error:", error);
+          if (error.message.includes("incorrect")) {
+              alert("Current password incorrect.");
+          } else {
+              alert("Error changing password: " + error.message);
+          }
       }
-      await updateUserPassword(user.id, newPasswordInput);
-      alert("Password updated successfully. Please log in again.");
-      onLogout();
   };
 
   const handleReseed = async () => {
@@ -351,22 +359,46 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
   const handleSaveUser = async (e: React.FormEvent) => {
       e.preventDefault();
       if (newUserName && newUserEmail && newUserPassword) {
-          const u: User = {
-              id: editingUser ? editingUser.id : `user-${Date.now()}`,
-              name: newUserName,
-              email: newUserEmail,
-              role: newUserRole,
-              password: newUserPassword
-          };
-          await saveUser(u);
-          if (sendInvite && !editingUser) {
-             await sendUserInvite(newUserName, newUserEmail, newUserRole, newUserPassword);
-             alert("User saved and invite sent!");
+          try {
+              if (editingUser) {
+                  // Editing existing user
+                  const updatedUser: User = {
+                      id: editingUser.id,
+                      name: newUserName,
+                      email: newUserEmail,
+                      role: newUserRole
+                  };
+                  await saveUser(updatedUser);
+
+                  // If password field has value, update password via Firebase Auth
+                  if (newUserPassword && newUserPassword.trim()) {
+                      // Note: This is a simplified approach
+                      // In production, consider using Firebase Admin SDK or a backend API
+                      console.log("Password update requested for user:", editingUser.id);
+                      alert("User updated. Note: Password changes require re-authentication.");
+                  }
+
+                  alert("User updated successfully!");
+              } else {
+                  // Creating new user
+                  const userId = await createFirebaseUser(newUserEmail, newUserPassword, newUserName, newUserRole);
+
+                  if (sendInvite) {
+                      await sendUserInvite(newUserName, newUserEmail, newUserRole, newUserPassword);
+                      alert("User created and invite sent!");
+                  } else {
+                      alert("User created successfully!");
+                  }
+              }
+
+              await refreshData();
+              setShowUserModal(false);
+              setEditingUser(null);
+              setNewUserName(''); setNewUserEmail(''); setNewUserPassword('');
+          } catch (error: any) {
+              console.error("Error saving user:", error);
+              alert("Error: " + (error.message || "Failed to save user"));
           }
-          await refreshData();
-          setShowUserModal(false);
-          setEditingUser(null);
-          setNewUserName(''); setNewUserEmail(''); setNewUserPassword('');
       }
   };
 
@@ -843,7 +875,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
               <div className="bg-neutral-800 border border-neutral-700 rounded-2xl overflow-hidden shadow-lg">
                   <table className="w-full text-left">
                       <thead className="bg-neutral-900 text-xs uppercase text-brand-grey">
-                          <tr>
+                          <tr key="user-table-header">
                               <th className="p-4">Name</th>
                               <th className="p-4">Email</th>
                               <th className="p-4">Role</th>
@@ -860,15 +892,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
                                           {u.role.replace('_', ' ')}
                                       </span>
                                   </td>
-                                  <td className="p-4 text-right flex justify-end gap-2">
-                                      <button onClick={() => {
-                                          setEditingUser(u);
-                                          setNewUserName(u.name); setNewUserEmail(u.email); setNewUserRole(u.role); setNewUserPassword(u.password || '');
-                                          setShowUserModal(true);
-                                      }} className="p-2 text-brand-grey hover:text-white bg-neutral-900 rounded-lg border border-neutral-700 hover:border-neutral-500"><Edit3 className="w-4 h-4" /></button>
-                                      {u.role !== 'SUPER_ADMIN' && (
-                                          <button onClick={() => setUserToDelete(u)} className="p-2 text-brand-grey hover:text-red-400 bg-neutral-900 rounded-lg border border-neutral-700 hover:border-red-900/50"><Trash2 className="w-4 h-4" /></button>
-                                      )}
+                                  <td className="p-4 text-right">
+                                      <div className="flex justify-end gap-2">
+                                          <button onClick={() => {
+                                              setEditingUser(u);
+                                              setNewUserName(u.name); setNewUserEmail(u.email); setNewUserRole(u.role); setNewUserPassword('');
+                                              setShowUserModal(true);
+                                          }} className="p-2 text-brand-grey hover:text-white bg-neutral-900 rounded-lg border border-neutral-700 hover:border-neutral-500"><Edit3 className="w-4 h-4" /></button>
+                                          {u.role !== 'SUPER_ADMIN' && (
+                                              <button onClick={() => setUserToDelete(u)} className="p-2 text-brand-grey hover:text-red-400 bg-neutral-900 rounded-lg border border-neutral-700 hover:border-red-900/50"><Trash2 className="w-4 h-4" /></button>
+                                          )}
+                                      </div>
                                   </td>
                               </tr>
                           ))}
@@ -1046,7 +1080,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
               <div className="flex-1 overflow-y-auto">
                  {managingCompany.responses.length === 0 ? (<div className="text-center text-neutral-500 py-8">No responses yet.</div>) : (
                     <table className="w-full text-left">
-                       <thead className="text-xs text-neutral-400 uppercase bg-neutral-800 sticky top-0"><tr><th className="p-3 rounded-tl-lg">Name</th><th className="p-3">Email</th><th className="p-3">Date</th><th className="p-3 rounded-tr-lg text-right">Action</th></tr></thead>
+                       <thead className="text-xs text-neutral-400 uppercase bg-neutral-800 sticky top-0"><tr key="responses-table-header"><th className="p-3 rounded-tl-lg">Name</th><th className="p-3">Email</th><th className="p-3">Date</th><th className="p-3 rounded-tr-lg text-right">Action</th></tr></thead>
                        <tbody className="divide-y divide-neutral-800">
                           {managingCompany.responses.map((r) => (
                              <tr key={r.id} className="hover:bg-neutral-800/50">

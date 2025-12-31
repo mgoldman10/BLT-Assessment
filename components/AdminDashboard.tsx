@@ -79,6 +79,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
   const [newUserName, setNewUserName] = useState('');
   const [newUserRole, setNewUserRole] = useState<UserRole>('ADMIN');
   const [newUserPassword, setNewUserPassword] = useState('');
+  const [currentPasswordForEdit, setCurrentPasswordForEdit] = useState('');
   const [sendInvite, setSendInvite] = useState(true);
   
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
@@ -358,47 +359,86 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
 
   const handleSaveUser = async (e: React.FormEvent) => {
       e.preventDefault();
-      if (newUserName && newUserEmail && newUserPassword) {
-          try {
-              if (editingUser) {
-                  // Editing existing user
-                  const updatedUser: User = {
-                      id: editingUser.id,
-                      name: newUserName,
-                      email: newUserEmail,
-                      role: newUserRole
-                  };
-                  await saveUser(updatedUser);
 
-                  // If password field has value, update password via Firebase Auth
-                  if (newUserPassword && newUserPassword.trim()) {
-                      // Note: This is a simplified approach
-                      // In production, consider using Firebase Admin SDK or a backend API
-                      console.log("Password update requested for user:", editingUser.id);
-                      alert("User updated. Note: Password changes require re-authentication.");
-                  }
+      // Validate: name and email always required, password only required when creating
+      if (!newUserName || !newUserEmail || (!editingUser && !newUserPassword)) {
+          alert("Please fill in all required fields.");
+          return;
+      }
 
-                  alert("User updated successfully!");
-              } else {
-                  // Creating new user
-                  const userId = await createFirebaseUser(newUserEmail, newUserPassword, newUserName, newUserRole);
+      try {
+          if (editingUser) {
+              // Editing existing user
+              const updatedUser: User = {
+                  id: editingUser.id,
+                  name: newUserName,
+                  email: newUserEmail,
+                  role: newUserRole
+              };
+              await saveUser(updatedUser);
 
-                  if (sendInvite) {
-                      await sendUserInvite(newUserName, newUserEmail, newUserRole, newUserPassword);
-                      alert("User created and invite sent!");
+              // If password field has value, update password via Firebase Auth
+              if (newUserPassword && newUserPassword.trim()) {
+                  // Check if editing yourself (need current password)
+                  const isEditingSelf = editingUser.id === user.id;
+
+                  if (isEditingSelf) {
+                      // Editing your own password - requires current password
+                      if (!currentPasswordForEdit) {
+                          alert("Please enter your current password to change your password.");
+                          return;
+                      }
+                      await changeUserPassword(currentPasswordForEdit, newUserPassword);
                   } else {
-                      alert("User created successfully!");
+                      // Admin editing another user - not supported without backend
+                      alert("To reset another user's password, please use the 'Send Password Reset Email' feature or ask the user to change it themselves.");
+                      return;
                   }
               }
 
-              await refreshData();
-              setShowUserModal(false);
-              setEditingUser(null);
-              setNewUserName(''); setNewUserEmail(''); setNewUserPassword('');
-          } catch (error: any) {
-              console.error("Error saving user:", error);
-              alert("Error: " + (error.message || "Failed to save user"));
+              alert("User updated successfully!");
+          } else {
+              // Creating new user
+              const userId = await createFirebaseUser(newUserEmail, newUserPassword, newUserName, newUserRole);
+
+              if (sendInvite) {
+                  await sendUserInvite(newUserName, newUserEmail, newUserRole, newUserPassword);
+                  alert("User created and invite sent!");
+              } else {
+                  alert("User created successfully!");
+              }
           }
+
+          await refreshData();
+          setShowUserModal(false);
+          setEditingUser(null);
+          setNewUserName(''); setNewUserEmail(''); setNewUserPassword(''); setCurrentPasswordForEdit('');
+      } catch (error: any) {
+          console.error("Error saving user:", error);
+
+          // Show user-friendly error messages
+          let errorMessage = "Failed to save user";
+
+          if (error.message?.includes("Current password is incorrect") ||
+              error.message?.includes("wrong-password") ||
+              error.message?.includes("invalid-credential") ||
+              error.code === 'auth/wrong-password' ||
+              error.code === 'auth/invalid-credential') {
+              errorMessage = "Current password is incorrect. Please try again.";
+          } else if (error.message?.includes("email-already-in-use") ||
+                     error.code === 'auth/email-already-in-use') {
+              errorMessage = "This email is already in use by another account.";
+          } else if (error.message?.includes("weak-password") ||
+                     error.code === 'auth/weak-password') {
+              errorMessage = "Password is too weak. Please use at least 6 characters.";
+          } else if (error.message?.includes("invalid-email") ||
+                     error.code === 'auth/invalid-email') {
+              errorMessage = "Invalid email address.";
+          } else if (error.message) {
+              errorMessage = error.message;
+          }
+
+          alert(errorMessage);
       }
   };
 
@@ -866,7 +906,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
                   <h2 className="text-xl font-bold text-white">System Users</h2>
                   <button onClick={() => {
                       setEditingUser(null);
-                      setNewUserName(''); setNewUserEmail(''); setNewUserPassword(''); setNewUserRole('ADMIN');
+                      setNewUserName(''); setNewUserEmail(''); setNewUserPassword(''); setNewUserRole('ADMIN'); setCurrentPasswordForEdit('');
                       setShowUserModal(true);
                   }} className="px-4 py-2 bg-brand-orange hover:bg-orange-600 text-white rounded-xl font-bold flex items-center gap-2 shadow-lg">
                       <UserPlus className="w-4 h-4" /> Add User
@@ -896,7 +936,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
                                       <div className="flex justify-end gap-2">
                                           <button onClick={() => {
                                               setEditingUser(u);
-                                              setNewUserName(u.name); setNewUserEmail(u.email); setNewUserRole(u.role); setNewUserPassword('');
+                                              setNewUserName(u.name); setNewUserEmail(u.email); setNewUserRole(u.role); setNewUserPassword(''); setCurrentPasswordForEdit('');
                                               setShowUserModal(true);
                                           }} className="p-2 text-brand-grey hover:text-white bg-neutral-900 rounded-lg border border-neutral-700 hover:border-neutral-500"><Edit3 className="w-4 h-4" /></button>
                                           {u.role !== 'SUPER_ADMIN' && (
@@ -975,7 +1015,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
                       <div className="space-y-4 mb-6">
                           <div><label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Full Name</label><input type="text" required value={newUserName} onChange={e => setNewUserName(e.target.value)} className="w-full px-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none" /></div>
                           <div><label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Email</label><input type="email" required value={newUserEmail} onChange={e => setNewUserEmail(e.target.value)} className="w-full px-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none" /></div>
-                          <div><label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Password</label><div className="relative"><input type="text" required value={newUserPassword} onChange={e => setNewUserPassword(e.target.value)} className="w-full px-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none font-mono" /><Lock className="absolute right-3 top-3 w-5 h-5 text-neutral-500" /></div></div>
+{!editingUser ? (
+                              // Creating new user - show password field (required)
+                              <div><label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Password</label><div className="relative"><input type="text" required value={newUserPassword} onChange={e => setNewUserPassword(e.target.value)} className="w-full px-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none font-mono" /><Lock className="absolute right-3 top-3 w-5 h-5 text-neutral-500" /></div></div>
+                          ) : (editingUser && user && (editingUser.id === user.id || editingUser.email === user.email)) ? (
+                              // Editing yourself - show both current and new password fields
+                              <>
+                                  <div><label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Current Password</label><div className="relative"><input type="password" value={currentPasswordForEdit} onChange={e => setCurrentPasswordForEdit(e.target.value)} placeholder="Required to change password" className="w-full px-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none font-mono" /><Key className="absolute right-3 top-3 w-5 h-5 text-neutral-500" /></div></div>
+                                  <div><label className="block text-xs font-bold text-neutral-500 uppercase mb-1">New Password <span className="text-xs font-normal text-neutral-400 ml-2">(leave blank to keep current)</span></label><div className="relative"><input type="text" value={newUserPassword} onChange={e => setNewUserPassword(e.target.value)} placeholder="Leave blank to keep current password" className="w-full px-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none font-mono" /><Lock className="absolute right-3 top-3 w-5 h-5 text-neutral-500" /></div></div>
+                              </>
+                          ) : null
+                          // Editing another user - don't show password fields (can't update other users' passwords)
+                          }
                           <div><label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Role</label><select value={newUserRole} onChange={e => setNewUserRole(e.target.value as UserRole)} className="w-full px-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none"><option value="ADMIN">Admin (Standard)</option><option value="SUPER_ADMIN">Super Admin (Full Access)</option></select></div>
                           {!editingUser && (<label className="flex items-center gap-3 p-3 bg-neutral-800 rounded-lg cursor-pointer border border-neutral-700"><input type="checkbox" checked={sendInvite} onChange={e => setSendInvite(e.target.checked)} className="w-4 h-4 rounded text-brand-orange bg-brand-black border-neutral-600 focus:ring-brand-orange" /><span className="text-sm text-brand-grey flex items-center gap-2"><Mail className="w-4 h-4" /> Send email invite with credentials</span></label>)}
                       </div>

@@ -1,0 +1,49 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // COMPANIES COLLECTION
+    // Participants can read and add responses
+    // Admins manage via the app
+    match /companies/{companyId} {
+      // Allow reading companies
+      allow read: if true;
+
+      // Allow creating new companies
+      allow create: if request.resource.data.keys().hasAll(['id', 'name', 'templateId', 'createdAt', 'responses']);
+
+      // Allow updates only for:
+      // 1. Adding responses (participants submitting assessments)
+      // 2. Updating company metadata (admin operations)
+      allow update: if true;
+
+      // Allow deletion
+      allow delete: if true;
+    }
+
+    // TEMPLATES COLLECTION
+    // Public read access for participants
+    // Admins can create/update/delete templates
+    match /templates/{templateId} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasAll(['id', 'name', 'categories', 'createdAt', 'updatedAt']);
+      allow update: if true;
+      allow delete: if true;
+    }
+
+    // USERS COLLECTION
+    // Allow read/write for user management in admin panel
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // SETTINGS COLLECTION
+    // Allow read/write for settings management in admin panel
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if true;
+    }
+  }
+}

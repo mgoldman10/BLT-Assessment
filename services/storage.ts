@@ -409,11 +409,33 @@ export const deleteUser = async (id: string): Promise<void> => {
     // Delete Firestore metadata
     if (isConfigured() && db) {
         await deleteDoc(doc(db, USERS_COL, id));
+        
+        // Call Netlify function to delete from Firebase Auth
+        try {
+            // Get the base URL - works in both dev and production
+            const baseUrl = window.location.origin;
+            const functionUrl = `${baseUrl}/.netlify/functions/deleteAuthUser`;
+            
+            const response = await fetch(functionUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ userId: id }),
+            });
 
-        // NOTE: Deleting Firebase Auth users requires Firebase Admin SDK (server-side)
-        // Client-side Firebase Auth can only delete the currently authenticated user
-        // For production, implement a Cloud Function or backend API to delete auth users
-        console.warn(`Deleted Firestore metadata for user ${id}. Firebase Auth account still exists and should be deleted via Admin SDK.`);
+            if (!response.ok) {
+                const error = await response.json();
+                console.warn(`Failed to delete Firebase Auth user ${id}:`, error.message || 'Unknown error');
+                // Don't throw - Firestore deletion succeeded, Auth deletion is best-effort
+            } else {
+                console.log(`Successfully deleted Firebase Auth user: ${id}`);
+            }
+        } catch (error: any) {
+            // Log but don't fail - Firestore deletion already succeeded
+            console.warn(`Error calling deleteAuthUser function for ${id}:`, error.message);
+        }
+        
         return;
     }
 

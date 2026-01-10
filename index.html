@@ -47,7 +47,7 @@
       @media print {
         @page {
             size: auto;
-            margin: 10mm 10mm 15mm 10mm;
+            margin: 12mm 10mm 12mm 10mm;
         }
         html, body, #root {
             height: auto !important;
@@ -62,7 +62,17 @@
             color: black !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
-            padding-bottom: 0;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+        /* CRITICAL: Reset fixed positioning that causes page overlap */
+        .fixed:not(.no-print) {
+            position: static !important;
+        }
+        /* Only reset transforms on elements that might cause overlap, not chart elements */
+        [class*="translate-x"]:not([class*="chart"]):not([class*="graph"]) {
+            transform: none !important;
+            -webkit-transform: none !important;
         }
         /* Force background colors to print (for charts) */
         * {
@@ -72,40 +82,331 @@
         .no-print, .print-hidden {
             display: none !important;
         }
+        /* CRITICAL: Ensure all content is visible in print */
+        .report-container,
+        .report-container * {
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+        /* Page break markers - must be visible to work but take no space */
         .page-break {
-            break-before: page;
-            page-break-before: always;
-            display: block;
-            height: 1px; /* Ensure it takes up space in flow */
-            width: 100%;
+            break-before: page !important;
+            page-break-before: always !important;
+            display: block !important;
+            height: 0 !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            clear: both !important;
+            visibility: hidden !important;
+            overflow: hidden !important;
+        }
+        /* Category break - try to avoid breaking, but allow if needed */
+        .print-category-break {
+            break-before: avoid !important;
+            page-break-before: avoid !important;
+            margin-top: 1.5rem !important;
+        }
+        /* Ensure content after page breaks flows properly */
+        .page-break + * {
+            break-before: auto !important;
+            page-break-before: auto !important;
+            margin-top: 0 !important;
         }
         /* Reset heights for print to allow full content flow */
         .min-h-screen {
             min-height: 0 !important;
             height: auto !important;
         }
-        /* Fix for chrome to ensure footer repeats */
+        /* DISABLE fixed footer - causes overlap. Show as static element at document end only */
         .print-footer {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: white;
-            padding-bottom: 5mm;
+            position: static !important;
+            display: flex !important;
+            margin-top: 15mm;
+            padding: 3mm 0;
             border-top: 1px solid #e2e8f0;
-            z-index: 100;
+            font-size: 9pt;
         }
         /* Prevent elements from being cut in half */
         .break-inside-avoid {
             break-inside: avoid;
             page-break-inside: avoid;
         }
-        /* Adjust report container to fill print width */
+        /* Allow content to break naturally when needed */
+        .print-break-ok {
+            break-inside: auto !important;
+            page-break-inside: auto !important;
+        }
+        /* Force content to stay together */
+        .print-keep-together {
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+        /* Ensure tables don't get cut mid-row */
+        table {
+            break-inside: auto;
+        }
+        tr {
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+        thead {
+            display: table-header-group;
+        }
+        /* Better orphan/widow control for text */
+        p, li, td {
+            orphans: 3;
+            widows: 3;
+        }
+        /* CRITICAL: Ensure containers allow page breaks - but respect explicit avoid rules */
+        .report-container > div > div,
+        div[class*="space-y"] > div:not(.break-inside-avoid),
+        div[class*="mb-"]:not(.break-inside-avoid):not(h4) {
+            page-break-inside: auto !important;
+            break-inside: auto !important;
+        }
+        /* Exception: Keep question headers together */
+        .break-inside-avoid,
+        h4.break-inside-avoid,
+        div.border-b-4.break-inside-avoid,
+        h4[class*="text-lg"][class*="font-bold"] {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+        }
+        /* Adjust report container to fill print width - CRITICAL for page flow */
         .report-container {
             max-width: 100% !important;
             width: 100% !important;
             margin: 0 !important;
             padding: 0 !important;
+            position: static !important;
+            overflow: visible !important;
+            display: block !important;
+            float: none !important;
+            clear: both !important;
+            page-break-inside: auto !important;
+            break-inside: auto !important;
+            height: auto !important;
+            min-height: 0 !important;
+        }
+        /* Ensure main content wrapper flows */
+        div.bg-white.text-slate-900 {
+            min-height: 0 !important;
+            height: auto !important;
+            page-break-inside: auto !important;
+            break-inside: auto !important;
+        }
+        /* Ensure max-w containers don't cause positioning issues */
+        .max-w-6xl {
+            max-width: 100% !important;
+            width: 100% !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
+            page-break-inside: auto !important;
+            break-inside: auto !important;
+            height: auto !important;
+            min-height: 0 !important;
+        }
+        /* CRITICAL: Ensure all wrapper divs allow content to flow across pages */
+        div.bg-white.text-slate-900 > div,
+        div.bg-white.text-slate-900 > div > div {
+            page-break-inside: auto !important;
+            break-inside: auto !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+        }
+        /* Ensure content flows properly - remove bottom padding that was for screen fixed bar */
+        .pb-32 {
+            padding-bottom: 0 !important;
+        }
+        /* Reset min-height classes */
+        .min-h-0 {
+            min-height: 0 !important;
+        }
+        /* Ensure proper spacing between questions in print */
+        .space-y-12 > * + * {
+            margin-top: 2rem !important;
+        }
+        .space-y-10 > * + * {
+            margin-top: 1.5rem !important;
+        }
+        .space-y-8 > * + * {
+            margin-top: 1.5rem !important;
+        }
+        .space-y-6 > * + * {
+            margin-top: 1rem !important;
+        }
+        .space-y-4 > * + * {
+            margin-top: 0.75rem !important;
+        }
+        .space-y-3 > * + * {
+            margin-top: 0.5rem !important;
+        }
+        .space-y-2 > * + * {
+            margin-top: 0.375rem !important;
+        }
+        /* CRITICAL: Ensure space-y containers allow breaks but content is visible */
+        .space-y-3, .space-y-6, .space-y-10 {
+            break-inside: auto !important;
+            page-break-inside: auto !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+        }
+        .space-y-3 > *, .space-y-6 > *, .space-y-10 > * {
+            break-inside: auto !important;
+            page-break-inside: auto !important;
+        }
+        /* CRITICAL: Ensure category containers can break across pages */
+        div[class*="space-y"] > div {
+            break-inside: auto !important;
+            page-break-inside: auto !important;
+            height: auto !important;
+            min-height: 0 !important;
+        }
+        /* Only category headers should stay together */
+        div[class*="space-y"] > div > div.border-b-4 {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+        }
+        /* Ensure grids display properly */
+        .grid {
+            display: grid !important;
+        }
+        /* TEXT SURVEY SPECIFIC: Allow long text responses to break naturally across pages */
+        .whitespace-pre-wrap {
+            white-space: pre-wrap !important;
+            word-wrap: break-word !important;
+            overflow-wrap: break-word !important;
+        }
+        /* Ensure text content flows naturally */
+        .leading-relaxed, .leading-normal {
+            line-height: 1.5 !important;
+        }
+        /* CRITICAL: Text survey response cards - but exclude keep-together cards */
+        .bg-white.border.border-slate-200.rounded-lg:not(.print-response-card-keep-together) {
+            break-inside: auto !important;
+            page-break-inside: auto !important;
+            -webkit-break-inside: auto !important;
+            overflow: visible !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            height: auto !important;
+            display: block !important;
+        }
+        /* Force ALL divs in text survey sections to allow breaks unless explicitly marked */
+        .print-break-ok {
+            break-inside: auto !important;
+            page-break-inside: auto !important;
+            -webkit-break-inside: auto !important;
+        }
+        .print-break-ok > * {
+            break-inside: auto !important;
+            page-break-inside: auto !important;
+            -webkit-break-inside: auto !important;
+        }
+        /* Only question headers should stay together */
+        .print-break-ok h4.break-inside-avoid {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+        }
+        /* CRITICAL: Ensure response text containers can break - especially for long responses */
+        div[class*="text-slate-800"][class*="whitespace-pre-wrap"],
+        div.text-slate-800.whitespace-pre-wrap {
+            break-inside: auto !important;
+            page-break-inside: auto !important;
+            -webkit-break-inside: auto !important;
+            max-height: none !important;
+            height: auto !important;
+            min-height: 0 !important;
+            overflow: visible !important;
+            display: block !important;
+            word-break: break-word !important;
+            overflow-wrap: break-word !important;
+            hyphens: auto !important;
+        }
+        /* Remove any height constraints on text content that might prevent breaking */
+        div[class*="text-slate-800"][style*="height"],
+        div[class*="whitespace-pre-wrap"][style*="height"] {
+            max-height: none !important;
+            height: auto !important;
+        }
+        /* Ensure response cards don't have any constraints - but exclude keep-together cards */
+        .bg-white.border.rounded-lg.p-4:not(.print-response-card-keep-together) {
+            min-height: 0 !important;
+            max-height: none !important;
+            height: auto !important;
+            break-inside: auto !important;
+            page-break-inside: auto !important;
+            -webkit-break-inside: auto !important;
+        }
+        /* Ensure padding doesn't prevent breaking */
+        .p-4 {
+            padding: 0.75rem !important;
+        }
+        /* Make sure long text responses can split - but exclude keep-together cards */
+        div.bg-white.border.rounded-lg:not(.print-response-card-keep-together) > div.text-slate-800 {
+            break-inside: auto !important;
+            page-break-inside: auto !important;
+            -webkit-break-inside: auto !important;
+        }
+        /* FINAL OVERRIDE: Ensure ANY response card in text surveys can break */
+        .report-container div.bg-white.border.rounded-lg:not(.print-response-card-keep-together),
+        .report-container div.bg-white.border.rounded-lg:not(.print-response-card-keep-together) * {
+            break-inside: auto !important;
+            page-break-inside: auto !important;
+            -webkit-break-inside: auto !important;
+        }
+        /* CRITICAL: Response cards with keep-together class MUST stay together (name + text) */
+        .print-response-card-keep-together,
+        .print-response-card-keep-together > * {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+            -webkit-break-inside: avoid !important;
+        }
+        /* Exception: Only keep question headers together */
+        .report-container h4.break-inside-avoid {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+        }
+        /* Exception: Keep respondent name with start of response */
+        div.bg-white.border.rounded-lg > div.flex.items-center {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+        }
+        /* Ensure rounded borders print correctly */
+        .rounded-lg {
+            border-radius: 0.5rem !important;
+        }
+        /* Remove padding that causes issues */
+        .p-4 {
+            padding: 0.75rem !important;
+        }
+        /* Ensure margins don't cause overlap */
+        .mb-6 {
+            margin-bottom: 1rem !important;
+        }
+        .mb-4 {
+            margin-bottom: 0.75rem !important;
+        }
+        .mb-8 {
+            margin-bottom: 1.5rem !important;
+        }
+        .mb-12 {
+            margin-bottom: 2rem !important;
+        }
+        /* Fix for text survey question containers */
+        div[class*="mb-6"] {
+            break-inside: auto !important;
+        }
+        /* ABSOLUTE FINAL OVERRIDE: Response cards with keep-together MUST stay together */
+        /* This comes last to override ALL previous rules */
+        .print-response-card-keep-together,
+        .print-response-card-keep-together * {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+            -webkit-break-inside: avoid !important;
         }
       }
       ::-webkit-scrollbar {

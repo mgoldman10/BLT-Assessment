@@ -190,7 +190,7 @@ const TeamReport: React.FC<TeamReportProps> = ({
                 </div>
             )}
 
-            <div className="max-w-6xl mx-auto report-container relative">
+            <div className={`max-w-6xl mx-auto report-container relative ${isTextSurvey ? 'text-survey-report' : 'blt-assessment-report'}`}>
                 {/* Header */}
                 <div className="mb-8 print:mb-4 text-center border-b-2 border-slate-900 pb-4">
                     {customLogo ? (

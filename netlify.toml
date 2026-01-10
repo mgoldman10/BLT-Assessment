@@ -1,10 +1,11 @@
 [build]
-  command = "npm run build"
+  command = "npm install --prefix netlify/functions && npm run build"
   publish = "dist"
 
 [functions]
   directory = "netlify/functions"
-  node_bundler = "esbuild"
+  # Using default bundler (zip-it-and-ship-it) instead of esbuild
+  # because firebase-admin has native dependencies that esbuild can't bundle
 
 [[redirects]]
   from = "/.netlify/functions/*"

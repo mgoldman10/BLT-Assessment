@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { AssessmentData, ParticipantResponse, SCALE_LABELS, UserAnswers } from '../types';
 import { getLogo } from '../services/storage';
-import { generateExecutiveSummary, AIAnalysisInput } from '../services/geminiService';
+import { generateExecutiveSummary, AIAnalysisInput, QuotaExceededError } from '../services/geminiService';
 import { ArrowLeft, Printer, Users, Sparkles, Loader2, RefreshCw, AlertCircle, MessageSquare } from 'lucide-react';
 
 interface TeamReportProps {
@@ -142,7 +142,13 @@ const TeamReport: React.FC<TeamReportProps> = ({
             setAiSummary(summary);
         } catch (e) {
             console.error("AI Generation failed", e);
-            setAiError("AI Analysis failed. Check API Key configuration.");
+            if (e instanceof QuotaExceededError) {
+                setAiError(e.message);
+            } else if (e instanceof Error) {
+                setAiError(`AI Analysis failed: ${e.message}`);
+            } else {
+                setAiError("AI Analysis failed. Check API Key configuration.");
+            }
         } finally {
             setIsGeneratingAI(false);
         }

@@ -129,6 +129,15 @@ export interface AIAnalysisInput {
     misalignments: { text: string; varianceDescription: string; label: string }[];
 }
 
+export class QuotaExceededError extends Error {
+    retryAfter?: number;
+    constructor(message: string, retryAfter?: number) {
+        super(message);
+        this.name = 'QuotaExceededError';
+        this.retryAfter = retryAfter;
+    }
+}
+
 export const generateExecutiveSummary = async (data: AIAnalysisInput): Promise<string> => {
     if (!process.env.API_KEY) throw new Error("API Key missing");
 
@@ -164,11 +173,53 @@ export const generateExecutiveSummary = async (data: AIAnalysisInput): Promise<s
     Constraint: Do not include an intro or conclusion. Use Markdown headers exactly as written above.
     `;
 
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt
-    });
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt
+        });
 
-    return response.text || "Could not generate analysis.";
+        return response.text || "Could not generate analysis.";
+    } catch (error: any) {
+        // Check for quota/rate limit errors - handle different error structures
+        const errorObj = error?.error || error;
+        const errorCode = errorObj?.code || errorObj?.statusCode;
+        const errorStatus = errorObj?.status || errorObj?.message;
+        
+        // Check for 429 or RESOURCE_EXHAUSTED
+        if (errorCode === 429 || errorStatus === 'RESOURCE_EXHAUSTED' || 
+            (typeof errorStatus === 'string' && errorStatus.includes('quota'))) {
+            
+            // Try to extract retry delay from various possible locations
+            let retrySeconds: number | undefined;
+            const details = errorObj?.details || errorObj?.error?.details || [];
+            
+            // Look for RetryInfo in details
+            const retryInfo = details.find((d: any) => 
+                d['@type'] === 'type.googleapis.com/google.rpc.RetryInfo' ||
+                d.retryDelay
+            );
+            
+            if (retryInfo?.retryDelay) {
+                const delayStr = retryInfo.retryDelay.toString().replace('s', '');
+                retrySeconds = Math.ceil(parseFloat(delayStr));
+            }
+            
+            // Also check message for retry time
+            if (!retrySeconds && errorObj?.message) {
+                const match = errorObj.message.match(/retry in ([\d.]+)s/i);
+                if (match) {
+                    retrySeconds = Math.ceil(parseFloat(match[1]));
+                }
+            }
+            
+            const message = retrySeconds 
+                ? `API quota exceeded (20 requests/day limit). Please wait ${retrySeconds} seconds and try again, or upgrade your Gemini API plan.`
+                : 'API quota exceeded (20 requests/day limit). Please wait a moment and try again, or upgrade your Gemini API plan.';
+            throw new QuotaExceededError(message, retrySeconds);
+        }
+        // Re-throw other errors
+        throw error;
+    }
 };
 

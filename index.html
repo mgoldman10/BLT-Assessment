@@ -46,9 +46,11 @@
 
       @media print {
         @page {
-            size: auto;
-            margin: 12mm 10mm 12mm 10mm;
+            size: letter;
+            margin: 0.5in 0.5in 0.5in 0.5in;
         }
+        /* Letter size adjustments - optimize spacing for 8.5" x 11" pages */
+        /* Letter is wider but shorter than A4, so we can use slightly more horizontal space */
         html, body, #root {
             height: auto !important;
             min-height: 0 !important;
@@ -208,6 +210,32 @@
         .text-survey-report table {
             font-size: 0.7rem !important;
         }
+        /* Preserve logo original size in print - exclude header from font-size reductions */
+        .text-survey-report .report-container > div:first-child .text-4xl,
+        .text-survey-report .report-container > div:first-child .text-5xl {
+            font-size: 2.25rem !important;
+        }
+        /* Preserve red circle size in logo - use smaller size (w-6 h-6 = 1.5rem) in print to match screen */
+        /* Override md:w-8 md:h-8 to use w-6 h-6 size in print */
+        .text-survey-report .report-container > div:first-child .w-6,
+        .text-survey-report .report-container > div:first-child .h-6,
+        .text-survey-report .report-container > div:first-child .md\:w-8,
+        .text-survey-report .report-container > div:first-child .md\:h-8 {
+            width: 1.5rem !important;
+            height: 1.5rem !important;
+            min-width: 1.5rem !important;
+            min-height: 1.5rem !important;
+            max-width: 1.5rem !important;
+            max-height: 1.5rem !important;
+        }
+        /* Exclude logo container from general font-size reduction */
+        .text-survey-report .report-container > div:first-child .flex.justify-center,
+        .text-survey-report .report-container > div:first-child .flex.justify-center > div {
+            font-size: revert !important;
+        }
+        .text-survey-report .report-container > div:first-child .flex.justify-center > div > div {
+            font-size: revert !important;
+        }
         /* Text survey: Spacing */
         .text-survey-report .mb-6 {
             margin-bottom: 0.5rem !important;
@@ -230,16 +258,19 @@
             break-inside: avoid !important;
             page-break-inside: avoid !important;
         }
-        /* BLT Assessment: Keep graph and executive summary together, then force page break after executive summary */
-        /* Wrap both sections in a container that stays together */
+        /* BLT Assessment: Keep graph and executive summary together on first page, then force page break after */
+        /* Ensure graph starts on first page - no page break before */
         .blt-assessment-report .mb-8.break-inside-avoid {
+            break-before: auto !important;
+            page-break-before: auto !important;
             break-after: auto !important;
             page-break-after: auto !important;
             margin-bottom: 0.75rem !important;
         }
+        /* Executive summary follows graph on same page, then forces page break after */
         .blt-assessment-report .mb-12.border-t-2 {
-            break-before: avoid !important;
-            page-break-before: avoid !important;
+            break-before: auto !important;
+            page-break-before: auto !important;
             break-after: page !important;
             page-break-after: always !important;
             margin-bottom: 0.125rem !important;
@@ -247,16 +278,27 @@
             margin-top: 0.75rem !important;
             border-top-width: 1px !important;
         }
-        /* Force both sections to stay together on first page - prevent executive summary from breaking */
-        .blt-assessment-report .mb-8.break-inside-avoid + .mb-12.border-t-2 {
-            break-before: avoid !important;
-            page-break-before: avoid !important;
+        /* Ensure header and graph start on first page - no page breaks before */
+        .blt-assessment-report .report-container > div:first-child,
+        .blt-assessment-report .report-container > div:first-child > div {
+            break-before: auto !important;
+            page-break-before: auto !important;
         }
-        /* Ensure the container wrapping both stays together - target parent of both sections */
-        .blt-assessment-report > div > div > .mb-8.break-inside-avoid,
-        .blt-assessment-report > div > div > .mb-12.border-t-2 {
-            break-inside: avoid !important;
-            page-break-inside: avoid !important;
+        /* Ensure graph section (first content after header) starts on first page */
+        .blt-assessment-report .mb-8.break-inside-avoid:first-of-type,
+        .blt-assessment-report > div > div > .mb-8.break-inside-avoid:first-of-type {
+            break-before: auto !important;
+            page-break-before: auto !important;
+        }
+        /* Ensure no page break before the first content section */
+        .blt-assessment-report .report-container > div:has(.mb-8.break-inside-avoid):first-of-type {
+            break-before: auto !important;
+            page-break-before: auto !important;
+        }
+        /* Ensure both sections stay together on first page */
+        .blt-assessment-report .mb-8.break-inside-avoid + .mb-12.border-t-2 {
+            break-before: auto !important;
+            page-break-before: auto !important;
         }
         /* Exclude graph from spacing reductions - preserve original appearance with explicit gaps */
         .blt-assessment-report .mb-8.break-inside-avoid .flex.justify-around {
@@ -321,13 +363,13 @@
             font-size: 0.6rem !important;
             line-height: 1.2 !important;
         }
-        /* Executive summary bullet points - single line, no wrapping */
+        /* Executive summary bullet points - allow wrapping */
         .blt-assessment-report .mb-12.border-t-2 .grid > div > div {
             font-size: 0.65rem !important;
             line-height: 1.3 !important;
-            white-space: nowrap !important;
-            overflow: hidden !important;
-            text-overflow: ellipsis !important;
+            white-space: normal !important;
+            overflow: visible !important;
+            text-overflow: clip !important;
         }
         .blt-assessment-report .mb-12.border-t-2 ul {
             padding-left: 0.5rem !important;
@@ -407,12 +449,13 @@
             break-inside: avoid !important;
             page-break-inside: avoid !important;
         }
-        /* BLT Assessment: Reduce spacing in print to fit content on one page */
+        /* BLT Assessment: Optimize spacing for Letter size (8.5" x 11") - one pillar per page */
+        /* Letter is wider but shorter than A4, balanced spacing */
         .blt-assessment-report div[class*="space-y-16"] {
-            gap: 0.5rem !important;
+            gap: 0.6rem !important;
         }
         .blt-assessment-report div[class*="space-y-16"] > * + * {
-            margin-top: 0.5rem !important;
+            margin-top: 0.6rem !important;
         }
         .blt-assessment-report div[class*="space-y-12"] {
             gap: 0.5rem !important;
@@ -421,42 +464,67 @@
             margin-top: 0.5rem !important;
         }
         .blt-assessment-report div[class*="space-y-6"] > * + * {
-            margin-top: 0.35rem !important;
+            margin-top: 0.4rem !important;
         }
-        /* Category header spacing */
+        /* Category header spacing - balanced for Letter size */
         .blt-assessment-report .border-b-4.mb-8 {
-            margin-bottom: 0.6rem !important;
-            padding-bottom: 0.3rem !important;
+            margin-bottom: 0.7rem !important;
+            padding-bottom: 0.35rem !important;
         }
-        /* Question spacing */
+        /* Question spacing - balanced for Letter */
         .blt-assessment-report .mb-6 {
-            margin-bottom: 0.6rem !important;
+            margin-bottom: 0.65rem !important;
         }
         .blt-assessment-report .mb-4 {
-            margin-bottom: 0.45rem !important;
+            margin-bottom: 0.5rem !important;
         }
         /* Table and content spacing */
         .blt-assessment-report .mb-8 {
             margin-bottom: 0.85rem !important;
         }
         .blt-assessment-report .mb-12 {
-            margin-bottom: 1.1rem !important;
+            margin-bottom: 1rem !important;
         }
-        /* Padding in question containers */
+        /* Padding in question containers - balanced for Letter */
         .blt-assessment-report .p-4 {
-            padding: 0.55rem !important;
+            padding: 0.6rem !important;
         }
         .blt-assessment-report .p-2 {
             padding: 0.3rem !important;
         }
-        /* Table cell padding - compact tables */
+        /* Table cell padding - readable for Letter size */
         .blt-assessment-report table td,
         .blt-assessment-report table th {
-            padding: 0.15rem 0.25rem !important;
+            padding: 0.25rem 0.3rem !important;
+            line-height: 1.25 !important;
         }
-        /* Space after tables */
+        /* Override p-2 class on table cells */
+        .blt-assessment-report table td.p-2,
+        .blt-assessment-report table th.p-2 {
+            padding: 0.25rem 0.3rem !important;
+        }
+        /* Space after tables - balanced */
         .blt-assessment-report table {
-            margin-bottom: 0.75rem !important;
+            margin-bottom: 0.4rem !important;
+            margin-top: 0.25rem !important;
+        }
+        /* Reduce table row spacing */
+        .blt-assessment-report table tr {
+            height: auto !important;
+            min-height: 0 !important;
+        }
+        /* Spacing around question containers with tables */
+        .blt-assessment-report .print-keep-together {
+            margin-bottom: 0.4rem !important;
+        }
+        /* Spacing for question header container */
+        .blt-assessment-report .flex.items-start.gap-4.mb-6 {
+            margin-bottom: 0.4rem !important;
+            gap: 0.75rem !important;
+        }
+        /* Spacing for table container */
+        .blt-assessment-report .overflow-x-auto.mb-4 {
+            margin-bottom: 0.35rem !important;
         }
         /* Reduce font sizes for print */
         /* Make main heading smaller to fit on one line */

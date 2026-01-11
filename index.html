@@ -201,40 +201,48 @@
             line-height: 1.25 !important;
             margin-bottom: 0.3rem !important;
         }
-        .text-survey-report p,
-        .text-survey-report span,
-        .text-survey-report div {
+        /* Text survey: Apply font-size reductions but EXCLUDE header (first child) */
+        /* Apply to content areas only, not header */
+        .text-survey-report .report-container > div:not(:first-child) p,
+        .text-survey-report .report-container > div:not(:first-child) span,
+        .text-survey-report .report-container > div:not(:first-child) div {
             font-size: 0.75rem !important;
             line-height: 1.35 !important;
         }
-        .text-survey-report table {
-            font-size: 0.7rem !important;
+        /* Logo text - header is excluded from above, so set explicit sizes */
+        /* Match Tailwind classes: text-4xl = 2.25rem, md:text-5xl = 3rem - use 3rem in print */
+        /* Target logo container and all text elements within it */
+        .text-survey-report .report-container > div:first-child .flex.justify-center.mb-6 .text-4xl,
+        .text-survey-report .report-container > div:first-child .flex.justify-center.mb-6 .text-5xl,
+        .text-survey-report .report-container > div:first-child .flex.justify-center.mb-6 .md\:text-5xl,
+        .text-survey-report .report-container > div:first-child .flex.justify-center.mb-6.items-center .text-4xl,
+        .text-survey-report .report-container > div:first-child .flex.justify-center.mb-6.items-center .text-5xl,
+        .text-survey-report .report-container > div:first-child .flex.justify-center.mb-6.items-center .md\:text-5xl {
+            font-size: 3rem !important;
+            line-height: 1 !important;
+            font-weight: 700 !important;
+            letter-spacing: 0.1em !important;
         }
-        /* Preserve logo original size in print - exclude header from font-size reductions */
-        .text-survey-report .report-container > div:first-child .text-4xl,
-        .text-survey-report .report-container > div:first-child .text-5xl {
-            font-size: 2.25rem !important;
-        }
-        /* Preserve red circle size in logo - use smaller size (w-6 h-6 = 1.5rem) in print to match screen */
-        /* Override md:w-8 md:h-8 to use w-6 h-6 size in print */
+        /* Red circle in logo - w-6 h-6 md:w-8 md:h-8 (1.5rem/2rem) - use larger size (2rem) */
         .text-survey-report .report-container > div:first-child .w-6,
         .text-survey-report .report-container > div:first-child .h-6,
         .text-survey-report .report-container > div:first-child .md\:w-8,
         .text-survey-report .report-container > div:first-child .md\:h-8 {
-            width: 1.5rem !important;
-            height: 1.5rem !important;
-            min-width: 1.5rem !important;
-            min-height: 1.5rem !important;
-            max-width: 1.5rem !important;
-            max-height: 1.5rem !important;
+            width: 2rem !important;
+            height: 2rem !important;
         }
-        /* Exclude logo container from general font-size reduction */
-        .text-survey-report .report-container > div:first-child .flex.justify-center,
-        .text-survey-report .report-container > div:first-child .flex.justify-center > div {
-            font-size: revert !important;
+        /* Header h1, h2, p sizes */
+        .text-survey-report .report-container > div:first-child h1 {
+            font-size: 1.25rem !important;
         }
-        .text-survey-report .report-container > div:first-child .flex.justify-center > div > div {
-            font-size: revert !important;
+        .text-survey-report .report-container > div:first-child h2 {
+            font-size: 1.1rem !important;
+        }
+        .text-survey-report .report-container > div:first-child p {
+            font-size: 0.75rem !important;
+        }
+        .text-survey-report table {
+            font-size: 0.7rem !important;
         }
         /* Text survey: Spacing */
         .text-survey-report .mb-6 {
@@ -1036,6 +1044,18 @@
             break-inside: avoid !important;
             page-break-inside: avoid !important;
             -webkit-break-inside: avoid !important;
+        }
+        /* FINAL OVERRIDE: Logo size - maximum specificity to override general div rule */
+        .text-survey-report .report-container > div:first-child .flex.justify-center.mb-6.items-center.select-none .text-4xl.font-bold.tracking-widest.text-slate-900.font-sans,
+        .text-survey-report .report-container > div:first-child .flex.justify-center.mb-6.items-center.select-none .text-5xl.font-bold.tracking-widest.text-slate-900.font-sans,
+        .text-survey-report .report-container > div:first-child .flex.justify-center.mb-6.items-center.select-none .md\:text-5xl.font-bold.tracking-widest.text-slate-900.font-sans,
+        .text-survey-report .report-container > div:first-child .flex.justify-center.mb-6.items-center.select-none > div.text-4xl.font-bold.tracking-widest.text-slate-900.font-sans,
+        .text-survey-report .report-container > div:first-child .flex.justify-center.mb-6.items-center.select-none > div.text-5xl.font-bold.tracking-widest.text-slate-900.font-sans,
+        .text-survey-report .report-container > div:first-child .flex.justify-center.mb-6.items-center.select-none > div.md\:text-5xl.font-bold.tracking-widest.text-slate-900.font-sans {
+            font-size: 3rem !important;
+            line-height: 1 !important;
+            font-weight: 700 !important;
+            letter-spacing: 0.1em !important;
         }
       }
       ::-webkit-scrollbar {

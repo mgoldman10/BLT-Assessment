@@ -8,6 +8,6 @@
   # because firebase-admin has native dependencies that esbuild can't bundle
 
 [[redirects]]
-  from = "/.netlify/functions/*"
-  to = "/.netlify/functions/:splat"
+  from = "/*"
+  to = "/index.html"
   status = 200

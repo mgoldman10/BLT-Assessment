@@ -104,6 +104,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
 
   const [renamingCompany, setRenamingCompany] = useState<Company | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  const [editTagsList, setEditTagsList] = useState<string[]>([]);
+  const [editTagInput, setEditTagInput] = useState('');
 
   const [companyToDelete, setCompanyToDelete] = useState<Company | null>(null);
   const [templateToDelete, setTemplateToDelete] = useState<AssessmentTemplate | null>(null);
@@ -249,12 +251,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
   const startRenamingCompany = (company: Company) => {
     setRenamingCompany(company);
     setRenameValue(company.name);
+    setEditTagsList(company.tags || []);
+    setEditTagInput('');
   };
 
   const handleRenameSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (renamingCompany && renameValue.trim()) {
-      const updated = { ...renamingCompany, name: renameValue.trim() };
+      const finalTags = editTagInput.trim()
+        ? [...editTagsList, editTagInput.trim()]
+        : editTagsList;
+      const updated = { ...renamingCompany, name: renameValue.trim(), tags: finalTags };
       await saveCompany(updated);
       await refreshData();
       setRenamingCompany(null);
@@ -1048,10 +1055,48 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
       {renamingCompany && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-black/90 backdrop-blur-sm animate-in fade-in">
           <div className="bg-neutral-900 p-8 rounded-2xl border border-neutral-700 w-full max-w-md shadow-2xl">
-            <h3 className="text-xl font-bold text-white mb-4">Rename Assessment</h3>
+            <h3 className="text-xl font-bold text-white mb-6">Edit Assessment</h3>
             <form onSubmit={handleRenameSave}>
-              <input type="text" value={renameValue} onChange={(e) => setRenameValue(e.target.value)} className="w-full px-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none mb-6" autoFocus />
-              <div className="flex gap-3 justify-end"><button type="button" onClick={() => setRenamingCompany(null)} className="px-6 py-3 bg-neutral-800 text-white rounded-xl font-bold hover:bg-neutral-700">Cancel</button><button type="submit" className="px-6 py-3 bg-brand-orange hover:bg-orange-600 text-white rounded-xl font-bold shadow-lg">Save</button></div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-brand-grey mb-2">Name</label>
+                <input type="text" value={renameValue} onChange={(e) => setRenameValue(e.target.value)} className="w-full px-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none" autoFocus />
+              </div>
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-brand-grey mb-2">Tags</label>
+                {editTagsList.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {editTagsList.map((tag, idx) => (
+                      <span key={idx} className="flex items-center gap-1 px-2 py-0.5 bg-neutral-700 text-brand-grey border border-neutral-600 rounded text-xs font-medium">
+                        <Tag className="w-3 h-3" /> {tag}
+                        <button type="button" onClick={() => setEditTagsList(prev => prev.filter((_, i) => i !== idx))} className="ml-1 hover:text-red-400 transition-colors" title="Remove tag">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <input
+                  type="text"
+                  value={editTagInput}
+                  onChange={(e) => setEditTagInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ',') {
+                      e.preventDefault();
+                      const tag = editTagInput.trim().replace(/,$/, '');
+                      if (tag && !editTagsList.includes(tag)) {
+                        setEditTagsList(prev => [...prev, tag]);
+                        setEditTagInput('');
+                      }
+                    }
+                  }}
+                  className="w-full px-4 py-3 bg-brand-black border border-neutral-600 rounded-xl text-white focus:ring-2 focus:ring-brand-orange outline-none"
+                  placeholder="Type a tag and press Enter or comma to add"
+                />
+              </div>
+              <div className="flex gap-3 justify-end">
+                <button type="button" onClick={() => setRenamingCompany(null)} className="px-6 py-3 bg-neutral-800 text-white rounded-xl font-bold hover:bg-neutral-700">Cancel</button>
+                <button type="submit" className="px-6 py-3 bg-brand-orange hover:bg-orange-600 text-white rounded-xl font-bold shadow-lg">Save</button>
+              </div>
             </form>
           </div>
         </div>

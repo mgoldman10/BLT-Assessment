@@ -309,7 +309,7 @@ const TeamReport: React.FC<TeamReportProps> = ({
                         </div>
                     </div>
 
-                    <div className="mb-12 border-t-2 border-slate-100 pt-6">
+                    <div className="mb-12 border-t-2 border-slate-100 pt-6 break-inside-avoid">
                         <div className="flex items-center gap-3 mb-4">
                             <Sparkles className="w-5 h-5 text-brand-orange" />
                             <h3 className="text-lg font-bold text-slate-800 uppercase tracking-wide">Executive Summary</h3>
@@ -365,7 +365,7 @@ const TeamReport: React.FC<TeamReportProps> = ({
 
                     <div className="space-y-16 print:space-y-0 print:block">
                         {assessmentData.categories.map((cat, idx) => (
-                            <div key={cat.id} className="page-break print:pt-8">
+                            <div key={cat.id} className={`${idx > 0 ? 'page-break' : ''} print:pt-8`}>
                                 <div className="border-b-4 border-slate-900 mb-8 pb-2"><h2 className="text-3xl font-bold">{cat.name}</h2></div>
                                 <div className="space-y-12 print:space-y-8">
                                     {cat.questions.map((q, qIdx) => {

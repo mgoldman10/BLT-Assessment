@@ -309,7 +309,7 @@ const TeamReport: React.FC<TeamReportProps> = ({
                         </div>
                     </div>
 
-                    <div className="mb-12 border-t-2 border-slate-100 pt-6 break-inside-avoid">
+                    <div className="mb-12 border-t-2 border-slate-100 pt-6">
                         <div className="flex items-center gap-3 mb-4">
                             <Sparkles className="w-5 h-5 text-brand-orange" />
                             <h3 className="text-lg font-bold text-slate-800 uppercase tracking-wide">Executive Summary</h3>
@@ -326,7 +326,7 @@ const TeamReport: React.FC<TeamReportProps> = ({
                         </div>
                         {aiSummary ? (
                             <div className="prose prose-sm max-w-none text-sm text-slate-700">
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div className="grid grid-cols-1 md:grid-cols-3 print:grid-cols-3 gap-6">
                                     <div className="[&>h3]:text-brand-orange [&>h3]:font-bold [&>h3]:mb-2 [&>h3]:uppercase [&>h3]:text-xs [&>ul]:pl-4 [&>ul]:space-y-2">
                                         <h3 className="text-brand-orange font-bold text-xs uppercase mb-2">Key Strengths</h3>
                                         {aiSummary.includes('### Key Strengths') ? (

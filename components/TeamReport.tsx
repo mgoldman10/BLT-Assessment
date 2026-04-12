@@ -358,22 +358,22 @@ const TeamReport: React.FC<TeamReportProps> = ({
                         </div>
                         {aiSummary ? (
                             <div className="prose prose-sm max-w-none text-sm text-slate-700">
-                                <div className="grid grid-cols-1 md:grid-cols-3 print:grid-cols-3 gap-6">
-                                    <div className="[&>h3]:text-brand-orange [&>h3]:font-bold [&>h3]:mb-2 [&>h3]:uppercase [&>h3]:text-xs [&>ul]:pl-4 [&>ul]:space-y-2">
+                                <div style={{ display: 'flex', gap: '1.5rem' }}>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
                                         <h3 className="text-brand-orange font-bold text-xs uppercase mb-2">Key Strengths</h3>
                                         {aiSummary.includes('### Key Strengths') ? (
-                                            <div dangerouslySetInnerHTML={{ __html: aiSummary.split('### Key Strengths')[1].split('### Critical Gaps')[0].replace(/-/g, '•').replace(/\n/g, '<br/>') }}></div>
+                                            <div className="text-xs" dangerouslySetInnerHTML={{ __html: aiSummary.split('### Key Strengths')[1].split('### Critical Gaps')[0].replace(/-/g, '•').replace(/\n/g, '<br/>') }}></div>
                                         ) : null}
                                     </div>
-                                    <div className="[&>h3]:text-brand-orange [&>h3]:font-bold [&>h3]:mb-2 [&>h3]:uppercase [&>h3]:text-xs [&>ul]:pl-4 [&>ul]:space-y-2">
+                                    <div style={{ flex: 1, minWidth: 0 }}>
                                         {aiSummary.includes('### Critical Gaps') ? (
                                             <>
                                                 <h3 className="text-brand-orange font-bold text-xs uppercase mb-2">Critical Gaps</h3>
-                                                <div dangerouslySetInnerHTML={{ __html: aiSummary.split('### Critical Gaps')[1].split('### Areas of Misalignment')[0].replace(/-/g, '•').replace(/\n/g, '<br/>') }}></div>
+                                                <div className="text-xs" dangerouslySetInnerHTML={{ __html: aiSummary.split('### Critical Gaps')[1].split('### Areas of Misalignment')[0].replace(/-/g, '•').replace(/\n/g, '<br/>') }}></div>
                                             </>
                                         ) : null}
                                     </div>
-                                    <div className="[&>h3]:text-brand-orange [&>h3]:font-bold [&>h3]:mb-2 [&>h3]:uppercase [&>h3]:text-xs [&>ul]:pl-4 [&>ul]:space-y-2">
+                                    <div style={{ flex: 1, minWidth: 0 }}>
                                         <h3 className="text-brand-orange font-bold text-xs uppercase mb-2">Areas of Misalignment</h3>
                                         {totalRespondents === 1 ? (
                                             <p className="italic text-slate-500">

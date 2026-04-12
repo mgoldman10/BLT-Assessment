@@ -326,7 +326,7 @@ const TeamReport: React.FC<TeamReportProps> = ({
                         </div>
                         {aiSummary ? (
                             <div className="prose prose-sm max-w-none text-sm text-slate-700">
-                                <div className="grid grid-cols-1 md:grid-cols-3 print:grid-cols-3 gap-6">
+                                <div className="grid grid-cols-3 gap-6">
                                     <div className="[&>h3]:text-brand-orange [&>h3]:font-bold [&>h3]:mb-2 [&>h3]:uppercase [&>h3]:text-xs [&>ul]:pl-4 [&>ul]:space-y-2">
                                         <h3 className="text-brand-orange font-bold text-xs uppercase mb-2">Key Strengths</h3>
                                         {aiSummary.includes('### Key Strengths') ? (
@@ -363,11 +363,12 @@ const TeamReport: React.FC<TeamReportProps> = ({
                         )}
                     </div>
 
-                    <div className="space-y-16 print:space-y-0 print:block">
+                    <div className="print-category-break"></div>
+                    <div className="space-y-16 print:space-y-8">
                         {assessmentData.categories.map((cat, idx) => (
-                            <div key={cat.id} className={`${idx > 0 ? 'page-break' : ''} print:pt-8`}>
+                            <div key={cat.id} className={`${idx > 0 ? 'print-category-break' : ''} print:pt-4`}>
                                 <div className="border-b-4 border-slate-900 mb-8 pb-2"><h2 className="text-3xl font-bold">{cat.name}</h2></div>
-                                <div className="space-y-12 print:space-y-8">
+                                <div className="space-y-12 print:space-y-6">
                                     {cat.questions.map((q, qIdx) => {
                                         globalQuestionIndex++;
                                         const { stats, average } = getQuestionStats(q.id);

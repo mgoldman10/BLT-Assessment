@@ -45,6 +45,16 @@
         min-height: 100%;
       }
 
+      /* Executive summary 3-column layout — used on screen and in print */
+      .exec-summary-cols {
+        display: flex;
+        gap: 1.5rem;
+      }
+      .exec-summary-cols > div {
+        flex: 1;
+        min-width: 0;
+      }
+
       @media print {
         @page {
             size: letter;
@@ -272,10 +282,10 @@
             page-break-after: avoid !important;
             margin-bottom: 0.3rem !important;
         }
-        /* Executive summary - keep together with graph, force to stay on first page */
+        /* Executive summary - allow natural flow, force page break after so categories start fresh */
         .blt-assessment-report .mb-12.border-t-2 {
-            break-inside: avoid !important;
-            page-break-inside: avoid !important;
+            break-inside: auto !important;
+            page-break-inside: auto !important;
             break-before: avoid !important;
             page-break-before: avoid !important;
             break-after: page !important;
@@ -285,10 +295,19 @@
             margin-top: 0.3rem !important;
             border-top-width: 1px !important;
         }
-        /* Override the break-inside-avoid class on executive summary container - keep it together */
+        /* Override the break-inside-avoid class on executive summary container - allow natural flow */
         .blt-assessment-report .mb-12.border-t-2.break-inside-avoid {
-            break-inside: avoid !important;
-            page-break-inside: avoid !important;
+            break-inside: auto !important;
+            page-break-inside: auto !important;
+        }
+        /* Force 3-column flex layout for exec summary in print */
+        .blt-assessment-report .exec-summary-cols {
+            display: flex !important;
+            gap: 1rem !important;
+        }
+        .blt-assessment-report .exec-summary-cols > div {
+            flex: 1 !important;
+            min-width: 0 !important;
         }
         /* Ensure graph and executive summary stay together as a unit */
         .blt-assessment-report .mb-8.break-inside-avoid + .mb-12.border-t-2 {

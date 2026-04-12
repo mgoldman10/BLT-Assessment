@@ -357,15 +357,15 @@ const TeamReport: React.FC<TeamReportProps> = ({
                             )}
                         </div>
                         {aiSummary ? (
-                            <div className="prose prose-sm max-w-none text-sm text-slate-700">
-                                <div style={{ display: 'flex', gap: '1.5rem' }}>
-                                    <div style={{ flex: 1, minWidth: 0 }}>
+                            <div className="text-sm text-slate-700">
+                                <div className="exec-summary-cols">
+                                    <div>
                                         <h3 className="text-brand-orange font-bold text-xs uppercase mb-2">Key Strengths</h3>
                                         {aiSummary.includes('### Key Strengths') ? (
                                             <div className="text-xs" dangerouslySetInnerHTML={{ __html: aiSummary.split('### Key Strengths')[1].split('### Critical Gaps')[0].replace(/-/g, '•').replace(/\n/g, '<br/>') }}></div>
                                         ) : null}
                                     </div>
-                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div>
                                         {aiSummary.includes('### Critical Gaps') ? (
                                             <>
                                                 <h3 className="text-brand-orange font-bold text-xs uppercase mb-2">Critical Gaps</h3>
@@ -373,7 +373,7 @@ const TeamReport: React.FC<TeamReportProps> = ({
                                             </>
                                         ) : null}
                                     </div>
-                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div>
                                         <h3 className="text-brand-orange font-bold text-xs uppercase mb-2">Areas of Misalignment</h3>
                                         {totalRespondents === 1 ? (
                                             <p className="italic text-slate-500">
@@ -395,7 +395,6 @@ const TeamReport: React.FC<TeamReportProps> = ({
                         )}
                     </div>
 
-                    <div className="print-category-break"></div>
                     <div className="space-y-16 print:space-y-8">
                         {assessmentData.categories.map((cat, idx) => (
                             <div key={cat.id} className={`${idx > 0 ? 'print-category-break' : ''} print:pt-4`}>

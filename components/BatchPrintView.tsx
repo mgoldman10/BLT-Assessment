@@ -12,6 +12,8 @@ interface BatchPrintViewProps {
 const BatchPrintView: React.FC<BatchPrintViewProps> = ({ companies, onBack }) => {
     const [loading, setLoading] = useState(true);
     const [dataMap, setDataMap] = useState<Record<string, AssessmentData>>({});
+    const [summariesReady, setSummariesReady] = useState(0);
+    const [totalSummariesNeeded, setTotalSummariesNeeded] = useState(0);
 
     useEffect(() => {
         const loadData = async () => {
@@ -35,15 +37,36 @@ const BatchPrintView: React.FC<BatchPrintViewProps> = ({ companies, onBack }) =>
             }));
             
             setDataMap(newDataMap);
+            setTotalSummariesNeeded(Object.keys(newDataMap).length);
             setLoading(false);
         };
         
         loadData();
     }, [companies]);
     
-    const handlePrint = () => {
+    const [printingCompanyId, setPrintingCompanyId] = useState<string | null>(null);
+
+    const handlePrintAll = () => {
+        const date = new Date().toISOString().split('T')[0];
+        const originalTitle = document.title;
+        document.title = `BLT-Batch-${date}`;
         window.print();
+        document.title = originalTitle;
     };
+
+    const handleSaveOne = (company: Company) => {
+        const date = new Date().toISOString().split('T')[0];
+        const originalTitle = document.title;
+        document.title = `BLT-${company.name}-${date}`;
+        setPrintingCompanyId(company.id);
+        setTimeout(() => {
+            window.print();
+            document.title = originalTitle;
+            setPrintingCompanyId(null);
+        }, 50);
+    };
+
+    const allSummariesReady = totalSummariesNeeded === 0 || summariesReady >= totalSummariesNeeded;
 
     if (loading) {
         return (
@@ -66,11 +89,16 @@ const BatchPrintView: React.FC<BatchPrintViewProps> = ({ companies, onBack }) =>
                     </button>
                     <h2 className="font-bold">Batch Print Preview ({companies.length} Reports)</h2>
                 </div>
-                <button 
-                    onClick={handlePrint}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold flex items-center gap-2 transition-colors"
+                <button
+                    onClick={handlePrintAll}
+                    disabled={!allSummariesReady}
+                    className={`px-4 py-2 text-white rounded-lg font-bold flex items-center gap-2 transition-colors ${allSummariesReady ? 'bg-blue-600 hover:bg-blue-500' : 'bg-slate-600 cursor-not-allowed opacity-70'}`}
                 >
-                    <Printer className="w-4 h-4" /> Print All
+                    {allSummariesReady ? (
+                        <><Printer className="w-4 h-4" /> Print All</>
+                    ) : (
+                        <><Loader2 className="w-4 h-4 animate-spin" /> Generating summaries... {summariesReady}/{totalSummariesNeeded}</>
+                    )}
                 </button>
             </div>
 
@@ -81,20 +109,34 @@ const BatchPrintView: React.FC<BatchPrintViewProps> = ({ companies, onBack }) =>
 
                     if (!companyAssessmentData) return null;
 
+                    const isBeingPrinted = printingCompanyId === company.id;
+                    const hiddenDuringIndividualPrint = printingCompanyId && !isBeingPrinted;
+
                     return (
-                        <div key={company.id}>
+                        <div key={company.id} className={hiddenDuringIndividualPrint ? 'print:hidden' : ''}>
                             <div className="bg-white shadow-xl print:shadow-none mb-8 print:mb-0 mx-auto max-w-6xl print:max-w-none">
-                                <TeamReport 
+                                {allSummariesReady && (
+                                    <div className="no-print flex justify-end px-6 pt-4">
+                                        <button
+                                            onClick={() => handleSaveOne(company)}
+                                            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-medium transition-colors"
+                                        >
+                                            <Printer className="w-3.5 h-3.5" /> Save as PDF
+                                        </button>
+                                    </div>
+                                )}
+                                <TeamReport
                                     companyName={company.name}
                                     assessmentData={companyAssessmentData}
                                     allResponses={company.responses}
-                                    onRestart={() => {}} // Not used in batch mode
+                                    onRestart={() => {}}
                                     mode="batch"
+                                    onSummaryReady={() => setSummariesReady(prev => prev + 1)}
                                 />
                             </div>
                             {/* Force page break between company reports */}
                             {index < companies.length - 1 && (
-                                <div className="page-break block w-full h-0 border-none m-0 p-0"></div>
+                                <div className={`page-break block w-full h-0 border-none m-0 p-0 ${hiddenDuringIndividualPrint ? 'print:hidden' : ''}`}></div>
                             )}
                         </div>
                     );

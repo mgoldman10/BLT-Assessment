@@ -163,18 +163,21 @@
         .blt-assessment-report th {
             display: table-cell !important;
         }
-        /* Page break markers — visible but white so Chrome honors break-before:right */
+        /* Batch blank page between reports.
+           Two breaks (before + after) reliably produce a blank page in Chrome.
+           break-before:page forces spacer to its own page (e.g. page 8),
+           break-after:page forces next company to start on a new page (e.g. page 9). */
         .page-break {
-            break-before: right !important;
-            page-break-before: right !important;
+            break-before: page !important;
+            page-break-before: always !important;
+            break-after: page !important;
+            page-break-after: always !important;
             display: block !important;
             height: 1px !important;
             width: 100% !important;
             margin: 0 !important;
             padding: 0 !important;
-            clear: both !important;
             background: white !important;
-            color: white !important;
             border: none !important;
             overflow: hidden !important;
         }

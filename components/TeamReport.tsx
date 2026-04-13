@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { AssessmentData, ParticipantResponse, SCALE_LABELS, UserAnswers } from '../types';
 import { getLogo } from '../services/storage';
 import { generateExecutiveSummary, AIAnalysisInput, QuotaExceededError } from '../services/geminiService';
+import { downloadPdf } from '../services/pdfService';
 import { ArrowLeft, Printer, Users, Sparkles, Loader2, RefreshCw, AlertCircle, MessageSquare } from 'lucide-react';
 
 interface TeamReportProps {
@@ -33,6 +34,10 @@ const TeamReport: React.FC<TeamReportProps> = ({
     const [aiSummary, setAiSummary] = useState<string | null>(null);
     const [isGeneratingAI, setIsGeneratingAI] = useState(false);
     const [aiError, setAiError] = useState<string | null>(null);
+
+    // PDF generation state
+    const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+    const [pdfError, setPdfError] = useState<string | null>(null);
 
     useEffect(() => {
         const loadLogo = async () => {
@@ -165,17 +170,18 @@ const TeamReport: React.FC<TeamReportProps> = ({
         }
     }, []);
 
-    const handlePrint = () => {
-        if (typeof window !== 'undefined' && window.print) {
-            const date = new Date().toISOString().split('T')[0];
-            const originalTitle = document.title;
-            document.title = `BLT-${companyName}-${date}`;
-            setTimeout(() => {
-                window.print();
-                document.title = originalTitle;
-            }, 100);
-        } else {
-            alert("Automatic printing is blocked. Please press Ctrl+P (or Cmd+P).");
+    const handlePrint = async () => {
+        const date = new Date().toISOString().split('T')[0];
+        const filename = `BLT-${companyName}-${date}`;
+        setIsGeneratingPdf(true);
+        setPdfError(null);
+        try {
+            await downloadPdf('blt-report-printable', filename);
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : 'PDF generation failed';
+            setPdfError(msg);
+        } finally {
+            setIsGeneratingPdf(false);
         }
     };
 
@@ -186,7 +192,7 @@ const TeamReport: React.FC<TeamReportProps> = ({
     const allowBreaksInGrid = allResponses.length > 8;
 
     return (
-        <div className={`bg-white text-slate-900 font-sans p-4 md:p-8 ${mode === 'batch' ? 'min-h-0 pb-8' : 'min-h-screen pb-32'}`}>
+        <div id={mode === 'batch' ? undefined : 'blt-report-printable'} className={`bg-white text-slate-900 font-sans p-4 md:p-8 ${mode === 'batch' ? 'min-h-0 pb-8' : 'min-h-screen pb-32'}`}>
             {mode !== 'batch' && (
                 <div className="max-w-6xl mx-auto mb-8 no-print flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <button onClick={onRestart} className="flex items-center gap-2 text-slate-500 hover:text-slate-900 font-medium transition-colors">
@@ -474,8 +480,27 @@ const TeamReport: React.FC<TeamReportProps> = ({
 
                 {mode !== 'batch' && (
                     <div className="fixed bottom-0 left-0 right-0 p-4 bg-slate-900/90 backdrop-blur flex flex-col md:flex-row justify-center gap-4 no-print z-50 border-t border-slate-800">
-                        <div className="text-slate-400 text-xs max-w-md text-center md:text-left flex items-center"><p>Tip: If the button doesn't work, press <span className="font-bold text-white">Ctrl+P</span> (Windows) or <span className="font-bold text-white">Cmd+P</span> (Mac).</p></div>
-                        <button type="button" onClick={handlePrint} className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-500 font-bold flex items-center justify-center gap-2 shadow-lg transition-all transform active:scale-95"><Printer className="w-4 h-4" /> Print / Save as PDF</button>
+                        {pdfError && (
+                            <div className="text-red-400 text-xs max-w-md text-center md:text-left flex items-center gap-2">
+                                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                                <p>{pdfError}</p>
+                            </div>
+                        )}
+                        {!pdfError && (
+                            <div className="text-slate-400 text-xs max-w-md text-center md:text-left flex items-center"><p>Your PDF will download automatically when ready.</p></div>
+                        )}
+                        <button
+                            type="button"
+                            onClick={handlePrint}
+                            disabled={isGeneratingPdf}
+                            className={`px-6 py-3 text-white rounded-lg font-bold flex items-center justify-center gap-2 shadow-lg transition-all transform active:scale-95 ${isGeneratingPdf ? 'bg-slate-600 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'}`}
+                        >
+                            {isGeneratingPdf ? (
+                                <><Loader2 className="w-4 h-4 animate-spin" /> Generating PDF...</>
+                            ) : (
+                                <><Printer className="w-4 h-4" /> Save as PDF</>
+                            )}
+                        </button>
                     </div>
                 )}
             </div>

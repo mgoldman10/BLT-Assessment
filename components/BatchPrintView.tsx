@@ -134,9 +134,9 @@ const BatchPrintView: React.FC<BatchPrintViewProps> = ({ companies, onBack }) =>
                                     onSummaryReady={() => setSummariesReady(prev => prev + 1)}
                                 />
                             </div>
-                            {/* Force page break between company reports */}
+                            {/* Force each company to start on a fresh front (odd) page in batch print */}
                             {index < companies.length - 1 && (
-                                <div className={`page-break block w-full h-0 border-none m-0 p-0 ${hiddenDuringIndividualPrint ? 'print:hidden' : ''}`}></div>
+                                <div className={`batch-company-break ${hiddenDuringIndividualPrint ? 'print:hidden' : ''}`}></div>
                             )}
                         </div>
                     );

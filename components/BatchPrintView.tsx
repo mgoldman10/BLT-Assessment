@@ -113,7 +113,7 @@ const BatchPrintView: React.FC<BatchPrintViewProps> = ({ companies, onBack }) =>
                     const hiddenDuringIndividualPrint = printingCompanyId && !isBeingPrinted;
 
                     return (
-                        <div key={company.id} className={hiddenDuringIndividualPrint ? 'print:hidden' : ''}>
+                        <div key={company.id} className={`${index > 0 ? 'batch-company-start' : ''} ${hiddenDuringIndividualPrint ? 'print:hidden' : ''}`}>
                             <div className="bg-white shadow-xl print:shadow-none mb-8 print:mb-0 mx-auto max-w-6xl print:max-w-none">
                                 {allSummariesReady && (
                                     <div className="no-print flex justify-end px-6 pt-4">
@@ -134,10 +134,6 @@ const BatchPrintView: React.FC<BatchPrintViewProps> = ({ companies, onBack }) =>
                                     onSummaryReady={() => setSummariesReady(prev => prev + 1)}
                                 />
                             </div>
-                            {/* Force each company to start on a fresh front (odd) page in batch print */}
-                            {index < companies.length - 1 && (
-                                <div className={`batch-company-break ${hiddenDuringIndividualPrint ? 'print:hidden' : ''}`}></div>
-                            )}
                         </div>
                     );
                 })}

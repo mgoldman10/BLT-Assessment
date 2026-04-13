@@ -155,23 +155,22 @@ export const generateExecutiveSummary = async (data: AIAnalysisInput): Promise<s
     - Split Votes (Misalignment): ${data.misalignments.map(m => `${m.label}: "${m.text}" (${m.varianceDescription})`).join('; ')}
 
     Task:
-    Write a concise Executive Summary that fits in a small 3-column box at the bottom of one page.
-    IMPORTANT: Keep each bullet point to ONE short sentence (max 20 words). Use ONLY 2-3 bullets per section.
+    Write a Professional Executive Summary to fit on the bottom of a one-page report.
     Output ONLY these 3 sections using Markdown headers:
 
     ### Key Strengths
-    (2-3 bullets. Each bullet: one short sentence naming the strength theme. No elaboration.)
+    (Identify 3-5 overall themes or patterns where the team is excelling. Synthesize the data into broader concepts rather than just listing specific questions. Write 2-3 sentences per bullet point to provide depth.)
 
     ### Critical Gaps
-    (2-3 bullets. Each bullet: one short sentence naming the gap or risk. No elaboration.)
+    (Identify 3-5 overall themes or patterns where the team is struggling. Synthesize the low scores into broader systemic issues (e.g. "Lack of Strategic Clarity" instead of just "Question 5 is low"). Write 2-3 sentences per bullet point.)
 
     ### Areas of Misalignment
     ${data.respondentCount === 1
         ? "(Write 'N/A' because there is only 1 respondent, so misalignment is impossible to measure.)"
-        : "(2-3 bullets. Each bullet: one short sentence describing where leaders disagreed. If aligned, say so in one sentence.)"
+        : "(Provide 2-3 bullet points highlighting where the team is split. If no major splits, note that the team is aligned. Write about 2 sentences per bullet.)"
     }
 
-    Constraint: Do not include an intro or conclusion. Use Markdown headers exactly as written above. Be extremely brief — this must fit in a small column.
+    Constraint: Do not include an intro or conclusion. Use Markdown headers exactly as written above.
     `;
 
     try {

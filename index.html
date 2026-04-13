@@ -186,18 +186,10 @@
             visibility: hidden !important;
             overflow: hidden !important;
         }
-        /* Batch print: force each company to start on a fresh front (odd/recto) page */
-        .batch-company-break {
+        /* Batch print: force each company (2nd onward) to start on a fresh front (odd/right) page */
+        .batch-company-start {
             break-before: right !important;
             page-break-before: right !important;
-            display: block !important;
-            height: 0 !important;
-            width: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            clear: both !important;
-            visibility: hidden !important;
-            overflow: hidden !important;
         }
         /* BLT Assessment: Ensure the page-break div before categories forces a new page */
         /* Category break - general margin for both types */

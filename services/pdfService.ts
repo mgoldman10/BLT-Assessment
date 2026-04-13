@@ -1,155 +1,85 @@
 /**
  * pdfService.ts
  *
- * Captures a DOM element, wraps it in a self-contained HTML document,
- * sends it to the Netlify generate-pdf function, and triggers a download.
+ * Client-side PDF generation using html2canvas + jsPDF.
+ * Captures the DOM element as rendered on screen (full layout, correct colors),
+ * splits it across Letter-size pages, and triggers a download.
  *
- * Why this approach:
- *   - Browser window.print() collapses to a ~720px viewport, breaking Tailwind
- *     md: classes and forcing the exec summary into a single tall column.
- *   - Puppeteer renders at 1400px in screen-media mode, so md:grid-cols-3 fires
- *     naturally and the layout is exactly what the user sees on screen.
+ * Why client-side instead of Puppeteer:
+ *   - Netlify's container environment is missing system libraries required by Chromium
+ *   - html2canvas renders at full screen width — layout matches exactly what the user sees
  */
 
-const PDF_FUNCTION_URL = '/.netlify/functions/generate-pdf';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 
-/**
- * Builds a self-contained HTML document around the captured element HTML.
- * Includes Tailwind CDN (with brand color config), Google Fonts, and
- * a small CSS block that handles page breaks and hides no-print elements.
- */
-function buildHtmlDocument(bodyContent: string): string {
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <script src="https://cdn.tailwindcss.com"><\/script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            brand: {
-              black: '#212121',
-              orange: '#FF3C00',
-              grey: '#C6C6C6',
-              dark: '#121212',
-              light: '#f8fafc'
-            }
-          },
-          fontFamily: {
-            sans: ['Montserrat', 'Inter', 'sans-serif'],
-            body: ['Inter', 'sans-serif']
-          }
-        }
-      }
-    }
-  <\/script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <style>
-    /* Reset for PDF rendering */
-    html, body {
-      background: white !important;
-      color: #1e293b;
-      margin: 0;
-      padding: 0;
-      font-family: 'Montserrat', 'Inter', sans-serif;
-    }
-    * {
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
-    }
+// Letter size in points (72pt = 1 inch)
+const PAGE_WIDTH_PT = 612;   // 8.5in
+const PAGE_HEIGHT_PT = 792;  // 11in
+const MARGIN_PT = 36;        // 0.5in
 
-    /* Hide interactive UI elements */
-    .no-print, .print-hidden {
-      display: none !important;
-    }
-
-    /* exec-summary 3-column flex layout */
-    .exec-summary-cols {
-      display: flex;
-      gap: 1.5rem;
-    }
-    .exec-summary-cols > div {
-      flex: 1;
-      min-width: 0;
-    }
-
-    /* Page breaks — these work in Puppeteer screen-mode PDF generation */
-    .print-category-break {
-      break-before: page !important;
-      page-break-before: always !important;
-    }
-    .batch-company-start {
-      break-before: page !important;
-      page-break-before: always !important;
-    }
-
-    /* Remove the bottom action bar background that would bleed into PDF */
-    .fixed {
-      position: static !important;
-    }
-  </style>
-</head>
-<body>
-${bodyContent}
-</body>
-</html>`;
-}
+const CONTENT_WIDTH_PT = PAGE_WIDTH_PT - MARGIN_PT * 2;
+const CONTENT_HEIGHT_PT = PAGE_HEIGHT_PT - MARGIN_PT * 2;
 
 /**
  * Generates and downloads a PDF for the given DOM element.
  *
- * @param elementId  - The `id` attribute of the element to capture
- * @param filename   - Suggested filename (without .pdf extension)
- * @param onProgress - Optional callback fired at key stages: 'capturing' | 'generating' | 'done' | 'error'
+ * @param elementId - The `id` attribute of the element to capture
+ * @param filename  - Suggested filename (without .pdf extension)
  */
-export async function downloadPdf(
-  elementId: string,
-  filename: string,
-  onProgress?: (stage: 'capturing' | 'generating' | 'done' | 'error', message?: string) => void
-): Promise<void> {
-  onProgress?.('capturing');
-
+export async function downloadPdf(elementId: string, filename: string): Promise<void> {
   const element = document.getElementById(elementId);
   if (!element) {
-    onProgress?.('error', `Element #${elementId} not found`);
     throw new Error(`Element #${elementId} not found in DOM`);
   }
 
-  // Capture the element's current rendered HTML
-  const bodyContent = element.outerHTML;
-  const html = buildHtmlDocument(bodyContent);
-
-  onProgress?.('generating');
-
-  const response = await fetch(PDF_FUNCTION_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ html, filename }),
+  // Capture the element at its current rendered size (full screen width)
+  const canvas = await html2canvas(element, {
+    scale: 2,                  // 2x for retina-quality sharpness
+    useCORS: true,             // allow cross-origin images (logo, fonts)
+    allowTaint: true,
+    backgroundColor: '#ffffff',
+    logging: false,
+    // Capture the full scrollable height
+    windowWidth: element.scrollWidth,
+    windowHeight: element.scrollHeight,
   });
 
-  if (!response.ok) {
-    let message = `HTTP ${response.status}`;
-    try {
-      const err = await response.json();
-      message = err.message || err.error || message;
-    } catch { /* ignore */ }
-    onProgress?.('error', message);
-    throw new Error(`PDF generation failed: ${message}`);
+  const imgWidth = canvas.width;
+  const imgHeight = canvas.height;
+
+  // Scale factor: fit content width to page content area
+  const scale = CONTENT_WIDTH_PT / imgWidth;
+  const scaledPageHeightPx = CONTENT_HEIGHT_PT / scale;
+
+  const pdf = new jsPDF({
+    orientation: 'portrait',
+    unit: 'pt',
+    format: 'letter',
+  });
+
+  let yOffset = 0;
+  let pageIndex = 0;
+
+  while (yOffset < imgHeight) {
+    if (pageIndex > 0) pdf.addPage();
+
+    // Slice just this page's portion from the canvas
+    const sliceHeight = Math.min(scaledPageHeightPx, imgHeight - yOffset);
+    const pageCanvas = document.createElement('canvas');
+    pageCanvas.width = imgWidth;
+    pageCanvas.height = sliceHeight;
+    const ctx = pageCanvas.getContext('2d')!;
+    ctx.drawImage(canvas, 0, yOffset, imgWidth, sliceHeight, 0, 0, imgWidth, sliceHeight);
+
+    const imgData = pageCanvas.toDataURL('image/jpeg', 0.95);
+    const renderedHeight = sliceHeight * scale;
+
+    pdf.addImage(imgData, 'JPEG', MARGIN_PT, MARGIN_PT, CONTENT_WIDTH_PT, renderedHeight);
+
+    yOffset += sliceHeight;
+    pageIndex++;
   }
 
-  // Trigger browser download
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${filename}.pdf`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-
-  onProgress?.('done');
+  pdf.save(`${filename}.pdf`);
 }

@@ -7,7 +7,7 @@ const puppeteer = require('puppeteer-core');
 
 // Chromium binary hosted on GitHub Releases (~50MB, cached in /tmp after first download)
 const CHROMIUM_URL =
-  'https://github.com/Sparticuz/chromium/releases/download/v130.0.0/chromium-v130.0.0-pack.tar';
+  'https://github.com/Sparticuz/chromium/releases/download/v119.0.2/chromium-v119.0.2-pack.tar';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',

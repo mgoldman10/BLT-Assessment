@@ -2,12 +2,8 @@
 // Receives { html, filename } via POST, returns Letter-size PDF as base64.
 // Renders at 1400px in screen media mode so md: Tailwind breakpoints fire normally.
 
-const chromium = require('@sparticuz/chromium-min');
+const chromium = require('@sparticuz/chromium');
 const puppeteer = require('puppeteer-core');
-
-// Chromium binary hosted on GitHub Releases (~50MB, cached in /tmp after first download)
-const CHROMIUM_URL =
-  'https://github.com/Sparticuz/chromium/releases/download/v119.0.2/chromium-v119.0.2-pack.tar';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -43,7 +39,7 @@ exports.handler = async (event) => {
     browser = await puppeteer.launch({
       args: chromium.args,
       defaultViewport: { width: 1400, height: 900 },
-      executablePath: await chromium.executablePath(CHROMIUM_URL),
+      executablePath: await chromium.executablePath(),
       headless: chromium.headless,
     });
 

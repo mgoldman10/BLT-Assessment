@@ -46,7 +46,40 @@ const BatchPrintView: React.FC<BatchPrintViewProps> = ({ companies, onBack }) =>
         const originalTitle = document.title;
         const names = companies.map(c => c.name).join(', ');
         document.title = `BLT - ${names} - ${dateStr}`;
+
+        // Inject unique named @page rules per company so the CSS page counter
+        // resets to 1 at the start of each report (per CSS Paged Media spec,
+        // a new named-page sequence resets the page counter).
+        const reports = document.querySelectorAll<HTMLElement>('.blt-assessment-report');
+        let styleContent = '';
+        reports.forEach((_, i) => {
+            styleContent += `
+                @page blt-co-${i} {
+                    @bottom-right {
+                        content: "Page " counter(page);
+                        font-family: sans-serif;
+                        font-size: 9pt;
+                        color: #64748b;
+                    }
+                    @bottom-left {
+                        content: "BLT Assessment";
+                        font-family: sans-serif;
+                        font-size: 9pt;
+                        color: #64748b;
+                    }
+                }
+            `;
+        });
+        const styleEl = document.createElement('style');
+        styleEl.textContent = styleContent;
+        document.head.appendChild(styleEl);
+        reports.forEach((report, i) => report.style.setProperty('page', `blt-co-${i}`));
+
         window.print();
+
+        // Cleanup after print dialog closes
+        document.head.removeChild(styleEl);
+        reports.forEach(report => report.style.removeProperty('page'));
         document.title = originalTitle;
     };
 
@@ -71,12 +104,15 @@ const BatchPrintView: React.FC<BatchPrintViewProps> = ({ companies, onBack }) =>
                     </button>
                     <h2 className="font-bold">Batch Print Preview ({companies.length} Reports)</h2>
                 </div>
-                <button 
-                    onClick={handlePrint}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold flex items-center gap-2 transition-colors"
-                >
-                    <Printer className="w-4 h-4" /> Print All
-                </button>
+                <div className="flex items-center gap-4">
+                    <p className="text-xs text-slate-400 hidden md:block">Tip: In Chrome's print dialog, uncheck <span className="font-bold text-slate-300">Headers and footers</span> to use per-report page numbers.</p>
+                    <button
+                        onClick={handlePrint}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold flex items-center gap-2 transition-colors"
+                    >
+                        <Printer className="w-4 h-4" /> Print All
+                    </button>
+                </div>
             </div>
 
             <div className="print:p-0 p-8">

@@ -42,7 +42,12 @@ const BatchPrintView: React.FC<BatchPrintViewProps> = ({ companies, onBack }) =>
     }, [companies]);
     
     const handlePrint = () => {
+        const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+        const originalTitle = document.title;
+        const names = companies.map(c => c.name).join(', ');
+        document.title = `BLT - ${names} - ${dateStr}`;
         window.print();
+        document.title = originalTitle;
     };
 
     if (loading) {

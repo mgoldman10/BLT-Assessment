@@ -155,14 +155,18 @@ const TeamReport: React.FC<TeamReportProps> = ({
     }, [assessmentData, companyName, getQuestionStats, pillarScores, totalRespondents, isTextSurvey]);
 
     useEffect(() => {
-        if (mode !== 'batch' && !aiSummary && !isGeneratingAI && !aiError && allResponses.length > 0 && !isTextSurvey) {
+        if (!aiSummary && !isGeneratingAI && !aiError && allResponses.length > 0 && !isTextSurvey) {
             handleGenerateAI();
         }
     }, []);
 
     const handlePrint = () => {
         if (typeof window !== 'undefined' && window.print) {
-            setTimeout(() => window.print(), 100);
+            const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+            const originalTitle = document.title;
+            document.title = `BLT - ${companyName} - ${dateStr}`;
+            window.print();
+            document.title = originalTitle;
         } else {
             alert("Automatic printing is blocked. Please press Ctrl+P (or Cmd+P).");
         }

@@ -49,8 +49,10 @@ exports.handler = async (event) => {
 
     const page = await browser.newPage();
     await page.setViewport({ width: 1400, height: 900 });
-    // Use screen media so Tailwind's responsive md: classes work at full desktop width
-    await page.emulateMediaType('screen');
+    // Use print media so break-before:right (force odd/right page) works for batch page ordering.
+    // Tailwind's responsive md: classes still fire because they're based on viewport width (1400px),
+    // not media type — so md:grid-cols-3 etc. are unaffected.
+    await page.emulateMediaType('print');
     await page.setContent(html, { waitUntil: 'networkidle2', timeout: 25000 });
 
     const pdfBuffer = await page.pdf({

@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { AssessmentData, ParticipantResponse, SCALE_LABELS, UserAnswers } from '../types';
 import { getLogo } from '../services/storage';
-import { generateExecutiveSummary, AIAnalysisInput, QuotaExceededError } from '../services/geminiService';
-import { downloadPdf } from '../services/pdfService';
+import { generateExecutiveSummary, AIAnalysisInput } from '../services/geminiService';
 import { ArrowLeft, Printer, Users, Sparkles, Loader2, RefreshCw, AlertCircle, MessageSquare } from 'lucide-react';
 
 interface TeamReportProps {
@@ -34,10 +33,6 @@ const TeamReport: React.FC<TeamReportProps> = ({
     const [aiSummary, setAiSummary] = useState<string | null>(null);
     const [isGeneratingAI, setIsGeneratingAI] = useState(false);
     const [aiError, setAiError] = useState<string | null>(null);
-
-    // PDF generation state
-    const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
-    const [pdfError, setPdfError] = useState<string | null>(null);
 
     useEffect(() => {
         const loadLogo = async () => {
@@ -149,13 +144,7 @@ const TeamReport: React.FC<TeamReportProps> = ({
             setAiSummary(summary);
         } catch (e) {
             console.error("AI Generation failed", e);
-            if (e instanceof QuotaExceededError) {
-                setAiError(e.message);
-            } else if (e instanceof Error) {
-                setAiError(`AI Analysis failed: ${e.message}`);
-            } else {
-                setAiError("AI Analysis failed. Check API Key configuration.");
-            }
+            setAiError("AI Analysis failed. Check API Key configuration.");
         } finally {
             setIsGeneratingAI(false);
             onSummaryReady?.();
@@ -170,29 +159,25 @@ const TeamReport: React.FC<TeamReportProps> = ({
         }
     }, []);
 
-    const handlePrint = async () => {
-        const date = new Date().toISOString().split('T')[0];
-        const filename = `BLT-${companyName}-${date}`;
-        setIsGeneratingPdf(true);
-        setPdfError(null);
-        try {
-            await downloadPdf('blt-report-printable', filename);
-        } catch (e) {
-            const msg = e instanceof Error ? e.message : 'PDF generation failed';
-            setPdfError(msg);
-        } finally {
-            setIsGeneratingPdf(false);
+    const handlePrint = () => {
+        if (typeof window !== 'undefined' && window.print) {
+            const date = new Date().toISOString().split('T')[0];
+            const originalTitle = document.title;
+            document.title = `BLT-${companyName}-${date}`;
+            setTimeout(() => {
+                window.print();
+                document.title = originalTitle;
+            }, 100);
+        } else {
+            alert("Automatic printing is blocked. Please press Ctrl+P (or Cmd+P).");
         }
     };
 
     const currentDate = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
     let globalQuestionIndex = 0;
-    
-    // Dynamic break handling: allow page breaks in response grids when there are many responses
-    const allowBreaksInGrid = allResponses.length > 8;
 
     return (
-        <div id={mode === 'batch' ? undefined : 'blt-report-printable'} className={`bg-white text-slate-900 font-sans p-4 md:p-8 ${mode === 'batch' ? 'min-h-0 pb-8' : 'min-h-screen pb-32'}`}>
+        <div className={`bg-white text-slate-900 font-sans p-4 md:p-8 ${mode === 'batch' ? 'min-h-0 pb-8' : 'min-h-screen pb-32'}`}>
             {mode !== 'batch' && (
                 <div className="max-w-6xl mx-auto mb-8 no-print flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <button onClick={onRestart} className="flex items-center gap-2 text-slate-500 hover:text-slate-900 font-medium transition-colors">
@@ -213,7 +198,7 @@ const TeamReport: React.FC<TeamReportProps> = ({
                 </div>
             )}
 
-            <div className={`max-w-6xl mx-auto report-container relative ${isTextSurvey ? 'text-survey-report' : 'blt-assessment-report'}`}>
+            <div className="max-w-6xl mx-auto report-container relative">
                 {/* Header */}
                 <div className="mb-8 print:mb-4 text-center border-b-2 border-slate-900 pb-4">
                     {customLogo ? (
@@ -233,12 +218,12 @@ const TeamReport: React.FC<TeamReportProps> = ({
 
                 {/* --- RENDER LOGIC FOR TEXT SURVEY --- */}
                 {isTextSurvey ? (
-                    <div className="space-y-10 print:space-y-6">
+                    <div className="space-y-12">
                         {assessmentData.categories.map((cat, idx) => (
-                            // Try to keep categories together, but allow natural breaks if needed
-                            <div key={cat.id} className={idx > 0 ? "print-category-break" : ""}>
-                                <div className="border-b-4 border-slate-900 mb-6 pb-2 break-inside-avoid print:mb-4"><h2 className="text-2xl font-bold">{cat.name}</h2></div>
-                                <div className="space-y-6 print:space-y-4">
+                            // Only apply page-break if it's NOT the first category
+                            <div key={cat.id} className={idx > 0 ? "page-break" : ""}>
+                                <div className="border-b-4 border-slate-900 mb-6 pb-2"><h2 className="text-2xl font-bold">{cat.name}</h2></div>
+                                <div className="space-y-8">
                                     {cat.questions.map((q) => {
                                         // Collect all answers for this question
                                         const responses = allResponses.map(r => ({
@@ -247,42 +232,19 @@ const TeamReport: React.FC<TeamReportProps> = ({
                                         })).filter(r => r.text); // Filter out empty
 
                                         return (
-                                            <div key={q.id} className="mb-6 print-break-ok" style={{breakInside: 'auto', pageBreakInside: 'auto'}}>
-                                                {/* Question header - keep together but allow question to break from responses */}
-                                                <h4 className="text-lg font-bold text-slate-800 mb-4 bg-slate-50 p-3 rounded border-l-4 border-brand-orange break-inside-avoid">{q.text}</h4>
-                                                {/* Responses - ALWAYS allow breaks for text surveys (responses can be long paragraphs) */}
-                                                <div className="space-y-3 print-break-ok" style={{breakInside: 'auto', pageBreakInside: 'auto'}}>
+                                            <div key={q.id} className="break-inside-avoid">
+                                                <h4 className="text-lg font-bold text-slate-800 mb-4 bg-slate-50 p-3 rounded border-l-4 border-brand-orange">{q.text}</h4>
+                                                <div className="grid gap-3">
                                                     {responses.length === 0 ? (
                                                         <div className="text-slate-400 italic pl-4">No responses.</div>
                                                     ) : (
-                                                        responses.map((resp, respIdx) => (
-                                                            <div key={respIdx} className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm print-response-card-keep-together" style={{
-                                                                breakInside: 'avoid', 
-                                                                pageBreakInside: 'avoid',
-                                                                minHeight: '0',
-                                                                maxHeight: 'none',
-                                                                height: 'auto',
-                                                                overflow: 'visible'
-                                                            }}>
-                                                                {/* Respondent name - keep with start of their response */}
-                                                                <div className="flex items-center gap-2 mb-2 text-xs font-bold text-slate-500 uppercase tracking-wider break-inside-avoid" style={{breakInside: 'avoid', pageBreakInside: 'avoid'}}>
+                                                        responses.map((resp, idx) => (
+                                                            <div key={idx} className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm break-inside-avoid">
+                                                                <div className="flex items-center gap-2 mb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
                                                                     <div className="w-2 h-2 rounded-full bg-slate-400"></div>
                                                                     {resp.name}
                                                                 </div>
-                                                                {/* Text response - keep with name (entire card stays together) */}
-                                                                <div className="text-slate-800 text-sm whitespace-pre-wrap leading-relaxed" style={{
-                                                                    breakInside: 'avoid', 
-                                                                    pageBreakInside: 'avoid', 
-                                                                    wordBreak: 'break-word', 
-                                                                    overflowWrap: 'break-word',
-                                                                    hyphens: 'auto',
-                                                                    WebkitHyphens: 'auto',
-                                                                    minHeight: '0',
-                                                                    maxHeight: 'none',
-                                                                    height: 'auto',
-                                                                    overflow: 'visible',
-                                                                    display: 'block'
-                                                                }}>
+                                                                <div className="text-slate-800 text-sm whitespace-pre-wrap leading-relaxed">
                                                                     {resp.text}
                                                                 </div>
                                                             </div>
@@ -299,7 +261,7 @@ const TeamReport: React.FC<TeamReportProps> = ({
                 ) : (
                     /* --- RENDER LOGIC FOR STANDARD ASSESSMENT --- */
                     <>
-                    <div className="mb-8 break-inside-avoid">
+                    <div className="mb-8">
                         <h3 className="text-xl font-bold mb-4 text-center">Average Scores by Pillar</h3>
                         <div className="flex justify-center w-full max-w-5xl mx-auto px-4">
                             <div className="relative h-[300px] w-10 border-r border-transparent mr-4 shrink-0">
@@ -347,7 +309,7 @@ const TeamReport: React.FC<TeamReportProps> = ({
                         </div>
                     </div>
 
-                    <div className="mb-12 border-t-2 border-slate-100 pt-6 break-inside-avoid">
+                    <div className="mb-12 border-t-2 border-slate-100 pt-6">
                         <div className="flex items-center gap-3 mb-4">
                             <Sparkles className="w-5 h-5 text-brand-orange" />
                             <h3 className="text-lg font-bold text-slate-800 uppercase tracking-wide">Executive Summary</h3>
@@ -401,12 +363,11 @@ const TeamReport: React.FC<TeamReportProps> = ({
                         )}
                     </div>
 
-                    <div className="print-category-break"></div>
-                    <div className="space-y-16 print:space-y-8">
+                    <div className="space-y-16 print:space-y-0 print:block">
                         {assessmentData.categories.map((cat, idx) => (
-                            <div key={cat.id} className={`${idx > 0 ? 'print-category-break' : ''} print:pt-4`}>
-                                <div className="border-b-4 border-slate-900 mb-8 pb-2 break-inside-avoid"><h2 className="text-3xl font-bold">{cat.name}</h2></div>
-                                <div className="space-y-12 print:space-y-6">
+                            <div key={cat.id} className="page-break print:pt-8">
+                                <div className="border-b-4 border-slate-900 mb-8 pb-2"><h2 className="text-3xl font-bold">{cat.name}</h2></div>
+                                <div className="space-y-12 print:space-y-8">
                                     {cat.questions.map((q, qIdx) => {
                                         globalQuestionIndex++;
                                         const { stats, average } = getQuestionStats(q.id);
@@ -419,33 +380,29 @@ const TeamReport: React.FC<TeamReportProps> = ({
                                         } else { bubbleColor = '#cbd5e1'; textColor = '#64748b'; }
 
                                         return (
-                                            <div key={q.id}>
-                                                {/* Question header and table - keep together */}
-                                                <div className="break-inside-avoid print-keep-together">
-                                                    <div className="flex items-start gap-4 mb-6">
-                                                        <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center font-bold text-sm shadow-sm" style={{ WebkitPrintColorAdjust: 'exact', backgroundColor: bubbleColor, color: textColor }}>{globalQuestionIndex}</div>
-                                                        <div className="flex-1"><h4 className="text-lg font-bold pt-0.5">{q.text}</h4></div>
-                                                    </div>
-                                                    <div className="hidden md:block overflow-x-auto mb-4">
-                                                        <table className="w-full text-sm border-collapse">
-                                                            <thead><tr><th className="p-2 text-left w-32 text-slate-500 font-normal"></th>{stats.map(s => <th key={s.value} className="p-2 border border-slate-200 bg-slate-50 w-1/5 text-center font-semibold text-slate-900">{s.label}</th>)}</tr></thead>
-                                                            <tbody>
-                                                                <tr><td className="p-2 border border-slate-200 font-bold text-slate-700 bg-slate-50">Response Count</td>{stats.map(s => <td key={s.value} className="p-2 border border-slate-200 text-center text-slate-900 font-medium">{s.count}</td>)}</tr>
-                                                                <tr><td className="p-2 border border-slate-200 font-bold text-slate-700 bg-slate-50">Response %</td>{stats.map(s => <td key={s.value} className="p-2 border border-slate-200 text-center text-slate-900">{s.percentage.toFixed(1)}%</td>)}</tr>
-                                                            </tbody>
-                                                        </table>
-                                                    </div>
-                                                    <div className="md:hidden mb-6">
-                                                        <div className="grid grid-cols-5 gap-1 text-center mb-1">{[0,1,2,3,4].map(v => <div key={v} className="text-[10px] font-bold text-slate-500 bg-slate-100 rounded py-1">{v}</div>)}</div>
-                                                        <div className="grid grid-cols-5 gap-1 text-center">{stats.map(s => <div key={s.value} className={`p-1 rounded border flex flex-col justify-center ${s.count > 0 ? 'bg-white border-slate-300 shadow-sm' : 'bg-slate-50 border-slate-100 text-slate-300'}`}><div className="font-bold text-sm text-slate-900">{s.count}</div><div className="text-[9px] text-slate-500">{s.percentage.toFixed(0)}%</div></div>)}</div>
-                                                        <div className="text-[9px] text-slate-400 mt-2 text-center flex justify-center gap-2 flex-wrap"><span>0:S.Disagree</span><span>1:Disagree</span><span>2:Neutral</span><span>3:Agree</span><span>4:S.Agree</span></div>
-                                                    </div>
+                                            <div key={q.id} className="break-inside-avoid">
+                                                <div className="flex items-start gap-4 mb-6">
+                                                    <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center font-bold text-sm shadow-sm" style={{ WebkitPrintColorAdjust: 'exact', backgroundColor: bubbleColor, color: textColor }}>{globalQuestionIndex}</div>
+                                                    <div className="flex-1"><h4 className="text-lg font-bold pt-0.5">{q.text}</h4></div>
                                                 </div>
-                                                {/* Individual scores - allow breaks when many responses */}
+                                                <div className="hidden md:block overflow-x-auto mb-4">
+                                                    <table className="w-full text-sm border-collapse">
+                                                        <thead><tr><th className="p-2 text-left w-32 text-slate-500 font-normal"></th>{stats.map(s => <th key={s.value} className="p-2 border border-slate-200 bg-slate-50 w-1/5 text-center font-semibold text-slate-900">{s.label}</th>)}</tr></thead>
+                                                        <tbody>
+                                                            <tr><td className="p-2 border border-slate-200 font-bold text-slate-700 bg-slate-50">Response Count</td>{stats.map(s => <td key={s.value} className="p-2 border border-slate-200 text-center text-slate-900 font-medium">{s.count}</td>)}</tr>
+                                                            <tr><td className="p-2 border border-slate-200 font-bold text-slate-700 bg-slate-50">Response %</td>{stats.map(s => <td key={s.value} className="p-2 border border-slate-200 text-center text-slate-900">{s.percentage.toFixed(1)}%</td>)}</tr>
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                                <div className="md:hidden mb-6">
+                                                    <div className="grid grid-cols-5 gap-1 text-center mb-1">{[0,1,2,3,4].map(v => <div key={v} className="text-[10px] font-bold text-slate-500 bg-slate-100 rounded py-1">{v}</div>)}</div>
+                                                    <div className="grid grid-cols-5 gap-1 text-center">{stats.map(s => <div key={s.value} className={`p-1 rounded border flex flex-col justify-center ${s.count > 0 ? 'bg-white border-slate-300 shadow-sm' : 'bg-slate-50 border-slate-100 text-slate-300'}`}><div className="font-bold text-sm text-slate-900">{s.count}</div><div className="text-[9px] text-slate-500">{s.percentage.toFixed(0)}%</div></div>)}</div>
+                                                    <div className="text-[9px] text-slate-400 mt-2 text-center flex justify-center gap-2 flex-wrap"><span>0:S.Disagree</span><span>1:Disagree</span><span>2:Neutral</span><span>3:Agree</span><span>4:S.Agree</span></div>
+                                                </div>
                                                 {showIndividualScores && (
-                                                    <div className={`ml-0 md:ml-12 p-4 bg-slate-50 border border-slate-200 rounded-lg mb-4 ${allowBreaksInGrid ? 'print-break-ok' : 'break-inside-avoid'}`}>
-                                                        <div className="flex items-center gap-2 mb-3 break-inside-avoid"><Users className="w-4 h-4 text-slate-400" /><span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Individual Team Responses</span></div>
-                                                        <div className={`grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3`}>
+                                                    <div className="ml-0 md:ml-12 p-4 bg-slate-50 border border-slate-200 rounded-lg break-inside-avoid">
+                                                        <div className="flex items-center gap-2 mb-3"><Users className="w-4 h-4 text-slate-400" /><span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Individual Team Responses</span></div>
+                                                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                                                             {allResponses.map((resp, rIdx) => {
                                                                 const score = fuzzyFindAnswer(resp.answers, q.id);
                                                                 if (typeof score !== 'number') return null;
@@ -455,7 +412,7 @@ const TeamReport: React.FC<TeamReportProps> = ({
                                                                 else { bg = 'bg-red-50 text-red-900 border-red-200'; indicatorColor = '#ef4444'; }
                                                                 const label = SCALE_LABELS[score as keyof typeof SCALE_LABELS] || 'Unknown';
                                                                 return (
-                                                                    <div key={rIdx} className={`px-3 py-2 rounded-md border ${bg} text-xs md:text-sm flex flex-col shadow-sm ${allowBreaksInGrid ? '' : 'break-inside-avoid'}`} style={{WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact'}}>
+                                                                    <div key={rIdx} className={`px-3 py-2 rounded-md border ${bg} text-xs md:text-sm flex flex-col break-inside-avoid shadow-sm`} style={{WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact'}}>
                                                                         <div className="flex items-center gap-1.5 mb-1"><div className="w-2 h-2 rounded-full flex-shrink-0" style={{backgroundColor: indicatorColor, WebkitPrintColorAdjust: 'exact'}}></div><span className="font-bold truncate">{resp.firstName} {resp.lastName}</span></div>
                                                                         <span className="text-[10px] md:text-xs opacity-80 font-medium pl-3 truncate">{label}</span>
                                                                     </div>
@@ -480,27 +437,8 @@ const TeamReport: React.FC<TeamReportProps> = ({
 
                 {mode !== 'batch' && (
                     <div className="fixed bottom-0 left-0 right-0 p-4 bg-slate-900/90 backdrop-blur flex flex-col md:flex-row justify-center gap-4 no-print z-50 border-t border-slate-800">
-                        {pdfError && (
-                            <div className="text-red-400 text-xs max-w-md text-center md:text-left flex items-center gap-2">
-                                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                                <p>{pdfError}</p>
-                            </div>
-                        )}
-                        {!pdfError && (
-                            <div className="text-slate-400 text-xs max-w-md text-center md:text-left flex items-center"><p>Your PDF will download automatically when ready.</p></div>
-                        )}
-                        <button
-                            type="button"
-                            onClick={handlePrint}
-                            disabled={isGeneratingPdf}
-                            className={`px-6 py-3 text-white rounded-lg font-bold flex items-center justify-center gap-2 shadow-lg transition-all transform active:scale-95 ${isGeneratingPdf ? 'bg-slate-600 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'}`}
-                        >
-                            {isGeneratingPdf ? (
-                                <><Loader2 className="w-4 h-4 animate-spin" /> Generating PDF...</>
-                            ) : (
-                                <><Printer className="w-4 h-4" /> Save as PDF</>
-                            )}
-                        </button>
+                        <div className="text-slate-400 text-xs max-w-md text-center md:text-left flex items-center"><p>Tip: If the button doesn't work, press <span className="font-bold text-white">Ctrl+P</span> (Windows) or <span className="font-bold text-white">Cmd+P</span> (Mac).</p></div>
+                        <button type="button" onClick={handlePrint} className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-500 font-bold flex items-center justify-center gap-2 shadow-lg transition-all transform active:scale-95"><Printer className="w-4 h-4" /> Print / Save as PDF</button>
                     </div>
                 )}
             </div>

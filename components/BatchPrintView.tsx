@@ -2,8 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Company, AssessmentData } from '../types';
 import TeamReport from './TeamReport';
 import { getAssessmentData } from '../services/geminiService';
-import { downloadPdf } from '../services/pdfService';
-import { ArrowLeft, Printer, Loader2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Printer, Loader2 } from 'lucide-react';
 
 interface BatchPrintViewProps {
     companies: Company[];
@@ -15,14 +14,12 @@ const BatchPrintView: React.FC<BatchPrintViewProps> = ({ companies, onBack }) =>
     const [dataMap, setDataMap] = useState<Record<string, AssessmentData>>({});
     const [summariesReady, setSummariesReady] = useState(0);
     const [totalSummariesNeeded, setTotalSummariesNeeded] = useState(0);
-    const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
-    const [pdfError, setPdfError] = useState<string | null>(null);
 
     useEffect(() => {
         const loadData = async () => {
             setLoading(true);
             const newDataMap: Record<string, AssessmentData> = {};
-
+            
             await Promise.all(companies.map(async (company) => {
                 // Prioritize templateId, fallback to assessmentType (legacy mapping), then default
                 let tid = company.templateId;
@@ -38,48 +35,38 @@ const BatchPrintView: React.FC<BatchPrintViewProps> = ({ companies, onBack }) =>
                     console.error(`Error loading data for ${company.name}`, err);
                 }
             }));
-
+            
             setDataMap(newDataMap);
             setTotalSummariesNeeded(Object.keys(newDataMap).length);
             setLoading(false);
         };
-
+        
         loadData();
     }, [companies]);
+    
+    const [printingCompanyId, setPrintingCompanyId] = useState<string | null>(null);
+
+    const handlePrintAll = () => {
+        const date = new Date().toISOString().split('T')[0];
+        const originalTitle = document.title;
+        document.title = `BLT-Batch-${date}`;
+        window.print();
+        document.title = originalTitle;
+    };
+
+    const handleSaveOne = (company: Company) => {
+        const date = new Date().toISOString().split('T')[0];
+        const originalTitle = document.title;
+        document.title = `BLT-${company.name}-${date}`;
+        setPrintingCompanyId(company.id);
+        setTimeout(() => {
+            window.print();
+            document.title = originalTitle;
+            setPrintingCompanyId(null);
+        }, 50);
+    };
 
     const allSummariesReady = totalSummariesNeeded === 0 || summariesReady >= totalSummariesNeeded;
-
-    const handlePrintAll = async () => {
-        const date = new Date().toISOString().split('T')[0];
-        const filename = companies.length === 1
-            ? `BLT-${companies[0].name}-${date}`
-            : `BLT-Batch-${date}`;
-        setIsGeneratingPdf(true);
-        setPdfError(null);
-        try {
-            await downloadPdf('batch-print-area', filename);
-        } catch (e) {
-            const msg = e instanceof Error ? e.message : 'PDF generation failed';
-            setPdfError(msg);
-        } finally {
-            setIsGeneratingPdf(false);
-        }
-    };
-
-    const handleSaveOne = async (company: Company) => {
-        const date = new Date().toISOString().split('T')[0];
-        const filename = `BLT-${company.name}-${date}`;
-        setIsGeneratingPdf(true);
-        setPdfError(null);
-        try {
-            await downloadPdf(`company-report-${company.id}`, filename);
-        } catch (e) {
-            const msg = e instanceof Error ? e.message : 'PDF generation failed';
-            setPdfError(msg);
-        } finally {
-            setIsGeneratingPdf(false);
-        }
-    };
 
     if (loading) {
         return (
@@ -100,48 +87,39 @@ const BatchPrintView: React.FC<BatchPrintViewProps> = ({ companies, onBack }) =>
                     <button onClick={onBack} className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors">
                         <ArrowLeft className="w-4 h-4" /> Back
                     </button>
-                    <h2 className="font-bold">Batch PDF Export ({companies.length} Reports)</h2>
+                    <h2 className="font-bold">Batch Print Preview ({companies.length} Reports)</h2>
                 </div>
-                <div className="flex items-center gap-3">
-                    {pdfError && (
-                        <div className="flex items-center gap-2 text-red-400 text-xs">
-                            <AlertCircle className="w-4 h-4" />
-                            <span>{pdfError}</span>
-                        </div>
+                <button
+                    onClick={handlePrintAll}
+                    disabled={!allSummariesReady}
+                    className={`px-4 py-2 text-white rounded-lg font-bold flex items-center gap-2 transition-colors ${allSummariesReady ? 'bg-blue-600 hover:bg-blue-500' : 'bg-slate-600 cursor-not-allowed opacity-70'}`}
+                >
+                    {allSummariesReady ? (
+                        <><Printer className="w-4 h-4" /> Print All</>
+                    ) : (
+                        <><Loader2 className="w-4 h-4 animate-spin" /> Generating summaries... {summariesReady}/{totalSummariesNeeded}</>
                     )}
-                    <button
-                        onClick={handlePrintAll}
-                        disabled={!allSummariesReady || isGeneratingPdf}
-                        className={`px-4 py-2 text-white rounded-lg font-bold flex items-center gap-2 transition-colors ${allSummariesReady && !isGeneratingPdf ? 'bg-blue-600 hover:bg-blue-500' : 'bg-slate-600 cursor-not-allowed opacity-70'}`}
-                    >
-                        {isGeneratingPdf ? (
-                            <><Loader2 className="w-4 h-4 animate-spin" /> Generating PDF...</>
-                        ) : !allSummariesReady ? (
-                            <><Loader2 className="w-4 h-4 animate-spin" /> Generating summaries... {summariesReady}/{totalSummariesNeeded}</>
-                        ) : (
-                            <><Printer className="w-4 h-4" /> Save All as PDF</>
-                        )}
-                    </button>
-                </div>
+                </button>
             </div>
 
-            <div id="batch-print-area" className="p-8">
+            <div className="print:p-0 p-8">
                 {companies.map((company, index) => {
+                    // Get loaded assessment data
                     const companyAssessmentData = dataMap[company.id];
+
                     if (!companyAssessmentData) return null;
 
+                    const isBeingPrinted = printingCompanyId === company.id;
+                    const hiddenDuringIndividualPrint = printingCompanyId && !isBeingPrinted;
+
                     return (
-                        <div
-                            key={company.id}
-                            className={index > 0 ? 'batch-company-start' : ''}
-                        >
-                            <div id={`company-report-${company.id}`} className="bg-white shadow-xl mb-8 mx-auto max-w-6xl">
+                        <div key={company.id} className={hiddenDuringIndividualPrint ? 'print:hidden' : ''}>
+                            <div className="bg-white shadow-xl print:shadow-none mb-8 print:mb-0 mx-auto max-w-6xl print:max-w-none">
                                 {allSummariesReady && (
                                     <div className="no-print flex justify-end px-6 pt-4">
                                         <button
                                             onClick={() => handleSaveOne(company)}
-                                            disabled={isGeneratingPdf}
-                                            className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded font-medium transition-colors ${isGeneratingPdf ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
+                                            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-medium transition-colors"
                                         >
                                             <Printer className="w-3.5 h-3.5" /> Save as PDF
                                         </button>
@@ -156,6 +134,10 @@ const BatchPrintView: React.FC<BatchPrintViewProps> = ({ companies, onBack }) =>
                                     onSummaryReady={() => setSummariesReady(prev => prev + 1)}
                                 />
                             </div>
+                            {/* Force page break between company reports */}
+                            {index < companies.length - 1 && (
+                                <div className={`page-break block w-full h-0 border-none m-0 p-0 ${hiddenDuringIndividualPrint ? 'print:hidden' : ''}`}></div>
+                            )}
                         </div>
                     );
                 })}

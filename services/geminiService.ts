@@ -165,8 +165,8 @@ export const generateExecutiveSummary = async (data: AIAnalysisInput): Promise<s
     (Identify 3-5 overall themes or patterns where the team is struggling. Synthesize the low scores into broader systemic issues (e.g. "Lack of Strategic Clarity" instead of just "Question 5 is low"). Write 2-3 sentences per bullet point.)
 
     ### Areas of Misalignment
-    ${data.respondentCount === 1
-        ? "(Write 'N/A' because there is only 1 respondent, so misalignment is impossible to measure.)"
+    ${data.respondentCount === 1 
+        ? "(Write 'N/A' because there is only 1 respondent, so misalignment is impossible to measure.)" 
         : "(Provide 2-3 bullet points highlighting where the team is split. If no major splits, note that the team is aligned. Write about 2 sentences per bullet.)"
     }
 

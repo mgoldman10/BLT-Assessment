@@ -7,9 +7,6 @@
   # Using default bundler (zip-it-and-ship-it) instead of esbuild
   # because firebase-admin has native dependencies that esbuild can't bundle
 
-[functions.generate-pdf]
-  timeout = 26
-
 [[redirects]]
   from = "/*"
   to = "/index.html"

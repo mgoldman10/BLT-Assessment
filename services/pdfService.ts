@@ -82,8 +82,8 @@ function buildHtmlDocument(bodyContent: string): string {
       page-break-before: always !important;
     }
     .batch-company-start {
-      break-before: right !important;
-      page-break-before: right !important;
+      break-before: page !important;
+      page-break-before: always !important;
     }
 
     /* Remove the bottom action bar background that would bleed into PDF */

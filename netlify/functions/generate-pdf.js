@@ -49,10 +49,9 @@ exports.handler = async (event) => {
 
     const page = await browser.newPage();
     await page.setViewport({ width: 1400, height: 900 });
-    // Use print media so break-before:right (force odd/right page) works for batch page ordering.
-    // Tailwind's responsive md: classes still fire because they're based on viewport width (1400px),
-    // not media type — so md:grid-cols-3 etc. are unaffected.
-    await page.emulateMediaType('print');
+    // Screen mode: Tailwind md: breakpoints fire at 1400px (exec summary stays 3-column).
+    // Puppeteer's page.pdf() still honors break-before:page in screen mode.
+    await page.emulateMediaType('screen');
     await page.setContent(html, { waitUntil: 'networkidle2', timeout: 25000 });
 
     const pdfBuffer = await page.pdf({

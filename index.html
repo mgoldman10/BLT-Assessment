@@ -163,17 +163,19 @@
         .blt-assessment-report th {
             display: table-cell !important;
         }
-        /* Page break markers - must be visible to work but take no space */
+        /* Page break markers — visible but white so Chrome honors break-before:right */
         .page-break {
-            break-before: page !important;
-            page-break-before: always !important;
+            break-before: right !important;
+            page-break-before: right !important;
             display: block !important;
-            height: 0 !important;
+            height: 1px !important;
             width: 100% !important;
             margin: 0 !important;
             padding: 0 !important;
             clear: both !important;
-            visibility: hidden !important;
+            background: white !important;
+            color: white !important;
+            border: none !important;
             overflow: hidden !important;
         }
         /* BLT Assessment: Ensure the page-break div before categories forces a new page */

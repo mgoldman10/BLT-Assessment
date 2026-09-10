@@ -23,11 +23,49 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyI
   const [userAnswers, setUserAnswers] = useState<UserAnswers>({});
   const [activeCategory, setActiveCategory] = useState<Category | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Set when the save to the database fails; shown to the participant with a Retry button.
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Store the generated view link to show on the success screen
   const [resultViewLink, setResultViewLink] = useState('');
 
   const isPublicMode = companyId === 'PUBLIC_NEW';
+
+  // Local backup of in-progress answers so a failed save, refresh, or closed tab
+  // does not lose the participant's work. Cleared once the save is confirmed.
+  const backupKey = companyId ? `blt_pending_${companyId}` : null;
+
+  useEffect(() => {
+    if (!backupKey) return;
+    try {
+      const raw = localStorage.getItem(backupKey);
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (saved && typeof saved === 'object') {
+        if (saved.firstName) setFirstName(saved.firstName);
+        if (saved.lastName) setLastName(saved.lastName);
+        if (saved.email) setEmail(saved.email);
+        if (saved.answers && typeof saved.answers === 'object') setUserAnswers(saved.answers);
+      }
+    } catch (e) {
+      // Ignore a corrupt or unavailable backup; start fresh.
+    }
+  }, [backupKey]);
+
+  useEffect(() => {
+    if (!backupKey || step === 'FINISHED') return;
+    if (Object.keys(userAnswers).length === 0) return;
+    try {
+      localStorage.setItem(backupKey, JSON.stringify({ firstName, lastName, email, answers: userAnswers }));
+    } catch (e) {
+      // Storage may be unavailable (private mode, quota); saving still works without it.
+    }
+  }, [backupKey, step, firstName, lastName, email, userAnswers]);
+
+  const clearBackup = () => {
+    if (!backupKey) return;
+    try { localStorage.removeItem(backupKey); } catch (e) {}
+  };
 
   const handleStart = (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,7 +85,9 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyI
   };
 
   const handleFinish = async () => {
+    if (isSubmitting) return;
     setIsSubmitting(true);
+    setSubmitError(null);
     const response: ParticipantResponse = {
         id: Date.now().toString(36) + Math.random().toString(36).substr(2),
         firstName: firstName.trim(),
@@ -74,8 +114,17 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyI
         }
 
         if (finalCompanyId) {
-            await addResponseToCompany(finalCompanyId, response);
+            try {
+                await addResponseToCompany(finalCompanyId, response);
+            } catch (e) {
+                console.error("Error saving response", e);
+                setSubmitError("We couldn't save your answers. Please check your connection and try again. Your answers are still here.");
+                setIsSubmitting(false);
+                return;
+            }
         }
+        // Save confirmed by the database; the local backup is no longer needed.
+        clearBackup();
 
         // Generate Links
         const reportParams = new URLSearchParams();
@@ -230,6 +279,26 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyI
                     </div>
                     <button type="submit" className="w-full py-4 bg-brand-orange hover:bg-orange-600 text-white font-bold rounded-xl transition-all shadow-lg flex items-center justify-center gap-2">Start Assessment <ArrowRight className="w-4 h-4" /></button>
                 </form>
+            </div>
+        </div>
+      )}
+
+      {submitError && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+            <div className="bg-neutral-900 max-w-md w-full p-8 rounded-3xl border border-red-800 text-center shadow-2xl">
+                <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4 text-red-400">
+                    <AlertCircle className="w-8 h-8" />
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-3">Submission Failed</h2>
+                <p className="text-brand-grey mb-6">{submitError}</p>
+                <button
+                    onClick={handleFinish}
+                    disabled={isSubmitting}
+                    className="w-full py-4 bg-brand-orange hover:bg-orange-600 text-white font-bold rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : <Send className="w-4 h-4" />} Try Again
+                </button>
+                <button onClick={() => setSubmitError(null)} className="mt-3 text-sm text-neutral-500 hover:text-white underline">Go back</button>
             </div>
         </div>
       )}

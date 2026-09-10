@@ -262,7 +262,13 @@ const App: React.FC = () => {
 
   const handleManualEntrySave = async (response: ParticipantResponse) => {
       if (manualEntryCompany) {
-          await addResponseToCompany(manualEntryCompany.id, response);
+          try {
+              await addResponseToCompany(manualEntryCompany.id, response);
+          } catch (e) {
+              console.error("Error saving manual response", e);
+              alert(`Could not save response for ${response.firstName} ${response.lastName}. Please try again.`);
+              return;
+          }
           alert(`Saved response for ${response.firstName} ${response.lastName}`);
           setManualEntryCompany(null);
           setViewMode('DASHBOARD');

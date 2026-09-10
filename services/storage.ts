@@ -302,7 +302,10 @@ export const getUsers = async (): Promise<User[]> => {
     if (isConfigured() && db) {
         try {
             const snap = await getDocs(collection(db, USERS_COL));
-            const users = snap.docs.map(d => d.data() as User);
+            // Always use the document ID (the Firebase Auth uid) as the user's id.
+            // Some older user docs lack an `id` field, and an undefined id made
+            // "Edit User" crash inside Firestore's doc() path builder.
+            const users = snap.docs.map(d => ({ ...(d.data() as User), id: d.id }));
             return users.length > 0 ? users : [DEFAULT_ADMIN];
         } catch (e) {
             console.warn("DB error users");

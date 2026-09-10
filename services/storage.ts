@@ -8,7 +8,8 @@ import {
   deleteDoc,
   getDoc,
   updateDoc,
-  deleteField
+  deleteField,
+  arrayUnion
 } from "firebase/firestore/lite";
 import {
   createUserWithEmailAndPassword,
@@ -301,7 +302,10 @@ export const getUsers = async (): Promise<User[]> => {
     if (isConfigured() && db) {
         try {
             const snap = await getDocs(collection(db, USERS_COL));
-            const users = snap.docs.map(d => d.data() as User);
+            // Always use the document ID (the Firebase Auth uid) as the user's id.
+            // Some older user docs lack an `id` field, and an undefined id made
+            // "Edit User" crash inside Firestore's doc() path builder.
+            const users = snap.docs.map(d => ({ ...(d.data() as User), id: d.id }));
             return users.length > 0 ? users : [DEFAULT_ADMIN];
         } catch (e) {
             console.warn("DB error users");
@@ -493,16 +497,18 @@ export const deleteCompany = async (id: string): Promise<void> => {
 };
 
 // Updated: Track lastActivity on response
+// Uses an atomic arrayUnion append rather than read-modify-write of the whole
+// document, so two participants submitting at the same moment cannot collide
+// (the security rule requires exactly one new response per write, which a
+// stale rewrite would violate). Errors are thrown to the caller so the
+// participant can be told the save failed and retry.
 export const addResponseToCompany = async (companyId: string, response: ParticipantResponse): Promise<void> => {
     if (isConfigured() && db) {
         const ref = doc(db, COMPANIES_COL, companyId);
-        const snap = await getDoc(ref);
-        if (snap.exists()) {
-            const comp = snap.data() as Company;
-            comp.responses.push(response);
-            comp.lastActivity = Date.now(); // Update activity timestamp
-            await setDoc(ref, comp);
-        }
+        await updateDoc(ref, {
+            responses: arrayUnion(response),
+            lastActivity: Date.now() // Update activity timestamp
+        });
         return;
     }
     const local = getLocalData<Company>(LOCAL_COMPANIES_KEY);

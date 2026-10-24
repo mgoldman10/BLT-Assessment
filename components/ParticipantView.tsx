@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { AssessmentData, Category, UserAnswers, ParticipantResponse } from '../types';
 import GameBoard from './GameBoard';
 import QuestionModal from './QuestionModal';
-import { encodeResponse, addResponseToCompany, createCompany, getSettings } from '../services/storage'; 
+import { encodeResponse, addResponseToCompany, createCompany, getSettings, withTimeout } from '../services/storage';
+import { reportParticipantError } from '../services/errorLogService';
 import { triggerAutomationWebhook } from '../services/webhookService';
 import { Check, Copy, User, ArrowRight, Loader2, AlertCircle, Send, Mail, Building, Eye } from 'lucide-react';
 
@@ -113,15 +114,25 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyI
             }
         }
 
-        if (finalCompanyId) {
-            try {
-                await addResponseToCompany(finalCompanyId, response);
-            } catch (e) {
-                console.error("Error saving response", e);
-                setSubmitError("We couldn't save your answers. Please check your connection and try again. Your answers are still here.");
-                setIsSubmitting(false);
-                return;
-            }
+        // Never report success without a confirmed save. With the strict link
+        // loading in App.tsx this only happens if creating a public-mode company failed.
+        if (!finalCompanyId) {
+            reportParticipantError('submit', { companyId, companyName: finalCompanyName, error: 'No company to save to' });
+            setSubmitError("We couldn't save your answers. Please check your connection and try again. Your answers are still here.");
+            setIsSubmitting(false);
+            return;
+        }
+
+        try {
+            // A network filter can drop the connection without refusing it, which
+            // would leave the participant on a spinner forever.
+            await withTimeout(addResponseToCompany(finalCompanyId, response), 30000);
+        } catch (e) {
+            console.error("Error saving response", e);
+            reportParticipantError('submit', { companyId: finalCompanyId, companyName: finalCompanyName, error: e });
+            setSubmitError("We couldn't save your answers. Please check your connection and try again — if it keeps failing, try a different network (for example, your phone with Wi-Fi off). Your answers are still here.");
+            setIsSubmitting(false);
+            return;
         }
         // Save confirmed by the database; the local backup is no longer needed.
         clearBackup();
@@ -148,13 +159,13 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyI
                 if (finalCompanyId) shareParams.set('companyId', finalCompanyId);
                 const shareLink = `${window.location.origin}/?${shareParams.toString()}`;
 
-                await triggerAutomationWebhook(settings.webhookUrl, {
+                await withTimeout(triggerAutomationWebhook(settings.webhookUrl, {
                     participant: response,
                     companyName: finalCompanyName,
                     reportLink: reportLink,
                     assessmentName: assessmentData.topic,
                     shareLink: shareLink
-                });
+                }), 10000);
             }
         } catch (e) {
             console.error("Webhook trigger error", e);

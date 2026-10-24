@@ -1,5 +1,5 @@
 import { AssessmentData, AssessmentTemplate, Category, UserAnswers } from "../types";
-import { getTemplate } from "./storage";
+import { getTemplate, fetchTemplateStrict } from "./storage";
 import { GoogleGenAI, Type } from "@google/genai";
 
 const getTotalQuestions = (template: AssessmentTemplate) =>
@@ -34,13 +34,15 @@ const normalizeNonBltTemplate = (template: AssessmentTemplate): AssessmentTempla
   };
 };
 
-export const getAssessmentData = async (templateId: string): Promise<AssessmentData> => {
-  // Note: getTemplate is now async
-  const template = await getTemplate(templateId);
-  
+// strict: used for participant links — a failed request throws (so an error is
+// shown) instead of quietly substituting a different assessment.
+export const getAssessmentData = async (templateId: string, strict = false): Promise<AssessmentData> => {
+  const loadTemplate = strict ? fetchTemplateStrict : getTemplate;
+  const template = await loadTemplate(templateId);
+
   // Fallback if template deleted or not found (shouldn't happen with seeding)
   if (!template) {
-    const standard = await getTemplate('default-standard');
+    const standard = await loadTemplate('default-standard');
     if (standard) {
       return { topic: standard.name, categories: standard.categories };
     }

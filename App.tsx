@@ -92,11 +92,17 @@ const App: React.FC = () => {
     const loadData = async () => {
       // Check for Public/Embed Mode
       if (mode === 'public') {
-          const data = await getAssessmentData(templateIdParam);
-          setAssessmentData(data);
-          setParticipantCompany(''); 
-          setParticipantCompanyId('PUBLIC_NEW'); 
-          setViewMode('PARTICIPANT');
+          try {
+              const data = await getAssessmentData(templateIdParam, true);
+              setAssessmentData(data);
+              setParticipantCompany('');
+              setParticipantCompanyId('PUBLIC_NEW');
+              setViewMode('PARTICIPANT');
+          } catch (e) {
+              console.error('Error loading website assessment', e);
+              reportParticipantError('load', { companyName: 'Website visitor', error: e });
+              setLinkError('network');
+          }
       }
       // Check for Result View Mode
       else if (mode === 'view_result') {

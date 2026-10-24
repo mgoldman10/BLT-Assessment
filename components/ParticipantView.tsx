@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { AssessmentData, Category, UserAnswers, ParticipantResponse } from '../types';
 import GameBoard from './GameBoard';
 import QuestionModal from './QuestionModal';
-import { encodeResponse, addResponseToCompany, createCompany, getSettings, withTimeout } from '../services/storage';
+import { encodeResponse, addResponseToCompany, withTimeout } from '../services/storage';
 import { reportParticipantError } from '../services/errorLogService';
-import { triggerAutomationWebhook } from '../services/webhookService';
+import { submitPublicAssessment } from '../services/publicSubmitService';
 import { Check, Copy, User, ArrowRight, Loader2, AlertCircle, Send, Mail, Building, Eye } from 'lucide-react';
 
 interface ParticipantViewProps {
@@ -104,33 +104,29 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyI
         let finalCompanyId = companyId;
         let finalCompanyName = companyName;
 
-        if (isPublicMode) {
-            try {
-                const newComp = await createCompany(publicCompanyName.trim(), 'default-strategy', ['From Website']);
-                finalCompanyId = newComp.id;
-                finalCompanyName = newComp.name;
-            } catch (e) {
-                console.error("Error creating public company", e);
-            }
-        }
-
-        // Never report success without a confirmed save. With the strict link
-        // loading in App.tsx this only happens if creating a public-mode company failed.
-        if (!finalCompanyId) {
-            reportParticipantError('submit', { companyId, companyName: finalCompanyName, error: 'No company to save to' });
-            setSubmitError("We couldn't save your answers. Please check your connection and try again. Your answers are still here.");
-            setIsSubmitting(false);
-            return;
-        }
-
         try {
-            // A network filter can drop the connection without refusing it, which
-            // would leave the participant on a spinner forever.
-            await withTimeout(addResponseToCompany(finalCompanyId, response), 30000);
+            if (isPublicMode) {
+                // Website visitors: the server creates their company, saves the
+                // response, and sends the Zapier notification (website only).
+                const saved = await withTimeout(submitPublicAssessment(publicCompanyName.trim(), response), 30000);
+                finalCompanyId = saved.companyId;
+                finalCompanyName = saved.companyName;
+            } else if (finalCompanyId) {
+                // Invited participants: save to their existing company. No Zapier
+                // notification — invited people must never go to Mailchimp.
+                // A network filter can drop the connection without refusing it, which
+                // would leave the participant on a spinner forever.
+                await withTimeout(addResponseToCompany(finalCompanyId, response), 30000);
+            } else {
+                throw new Error('No company to save to');
+            }
         } catch (e) {
             console.error("Error saving response", e);
-            reportParticipantError('submit', { companyId: finalCompanyId, companyName: finalCompanyName, error: e });
-            setSubmitError("We couldn't save your answers. Please check your connection and try again — if it keeps failing, try a different network (for example, your phone with Wi-Fi off). Your answers are still here.");
+            reportParticipantError('submit', { companyId: finalCompanyId, companyName: finalCompanyName || publicCompanyName, error: e });
+            const tooMany = e instanceof Error && e.message.startsWith('Too many');
+            setSubmitError(tooMany
+                ? "There have been too many submissions from your network in the last hour. Please try again later. Your answers are still here."
+                : "We couldn't save your answers. Please check your connection and try again — if it keeps failing, try a different network (for example, your phone with Wi-Fi off). Your answers are still here.");
             setIsSubmitting(false);
             return;
         }
@@ -144,32 +140,6 @@ const ParticipantView: React.FC<ParticipantViewProps> = ({ companyName, companyI
         if (finalCompanyId) reportParams.set('companyId', finalCompanyId);
         const reportLink = `${window.location.origin}/?${reportParams.toString()}`;
         setResultViewLink(reportLink);
-
-        try {
-            const settings = await getSettings();
-            if (settings.webhookUrl && finalCompanyId) {
-                
-                let typeParam = 'BLT';
-                if (assessmentData.topic.includes('Pre-Planning')) typeParam = 'Pre-Planning';
-                else if (assessmentData.topic.includes('35')) typeParam = 'BLT-Extended';
-                
-                const shareParams = new URLSearchParams();
-                shareParams.set('company', finalCompanyName);
-                shareParams.set('type', typeParam);
-                if (finalCompanyId) shareParams.set('companyId', finalCompanyId);
-                const shareLink = `${window.location.origin}/?${shareParams.toString()}`;
-
-                await withTimeout(triggerAutomationWebhook(settings.webhookUrl, {
-                    participant: response,
-                    companyName: finalCompanyName,
-                    reportLink: reportLink,
-                    assessmentName: assessmentData.topic,
-                    shareLink: shareLink
-                }), 10000);
-            }
-        } catch (e) {
-            console.error("Webhook trigger error", e);
-        }
 
         setStep('FINISHED');
     }

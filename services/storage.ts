@@ -527,6 +527,9 @@ export const addResponseToCompany = async (companyId: string, response: Particip
 // can show an error. Admin screens keep using the forgiving functions above.
 
 const LOAD_ATTEMPT_TIMEOUT_MS = 10000;
+// The full company list (used only by older name-only links) is ~3 MB because it
+// includes every company's responses, so allow far longer on slow connections.
+const FULL_LIST_ATTEMPT_TIMEOUT_MS = 45000;
 
 // Rejects if the request hasn't finished in time, e.g. a network filter that
 // silently drops the connection rather than refusing it.
@@ -541,11 +544,11 @@ export const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> =>
 
 // Read-only requests are safe to repeat, so retry momentary blips: 3 attempts,
 // pausing 1s then 2s between them.
-const withRetry = async <T>(request: () => Promise<T>, attempts = 3): Promise<T> => {
+const withRetry = async <T>(request: () => Promise<T>, attempts = 3, timeoutMs = LOAD_ATTEMPT_TIMEOUT_MS): Promise<T> => {
     let lastError: unknown;
     for (let i = 0; i < attempts; i++) {
         try {
-            return await withTimeout(request(), LOAD_ATTEMPT_TIMEOUT_MS);
+            return await withTimeout(request(), timeoutMs);
         } catch (e) {
             lastError = e;
             if (i < attempts - 1) await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
@@ -571,7 +574,7 @@ export const fetchCompanyStrict = async (companyId: string): Promise<Company | u
 export const fetchAllCompaniesStrict = async (): Promise<Company[]> => {
     const database = db;
     if (isConfigured() && database) {
-        const snap = await withRetry(() => getDocs(collection(database, COMPANIES_COL)));
+        const snap = await withRetry(() => getDocs(collection(database, COMPANIES_COL)), 3, FULL_LIST_ATTEMPT_TIMEOUT_MS);
         return snap.docs.map(d => d.data() as Company);
     }
     return getLocalData<Company>(LOCAL_COMPANIES_KEY);

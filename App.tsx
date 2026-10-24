@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { AssessmentData, Company, ParticipantResponse, User } from './types';
 import { getAssessmentData } from './services/geminiService';
-import { getCompanies, saveCompany, addResponseToCompany, markCompanyViewed, getSettings, createCompany } from './services/storage';
+import { getCompanies, saveCompany, addResponseToCompany, markCompanyViewed, getSettings, createCompany, fetchCompanyStrict, fetchAllCompaniesStrict } from './services/storage';
+import { reportParticipantError } from './services/errorLogService';
 import { logout, setupSessionTimeout, cleanupSessionTimeout } from './services/authService';
 import { auth, db } from './services/firebaseConfig';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -13,6 +14,7 @@ import AdminDashboard from './components/AdminDashboard';
 import ParticipantView from './components/ParticipantView';
 import BatchPrintView from './components/BatchPrintView';
 import LoginScreen from './components/LoginScreen';
+import LinkErrorScreen from './components/LinkErrorScreen';
 
 type ViewMode = 'LOGIN' | 'DASHBOARD' | 'PARTICIPANT' | 'SINGLE_REPORT' | 'BATCH_PRINT' | 'MASTER_REPORT' | 'MANUAL_ENTRY';
 
@@ -34,6 +36,12 @@ const App: React.FC = () => {
   const [manualEntryCompany, setManualEntryCompany] = useState<Company | null>(null);
 
   const [assessmentData, setAssessmentData] = useState<AssessmentData | null>(null);
+
+  // True until a participant/report link has finished loading, so the login
+  // screen doesn't flash (or sit there during retries) for link visitors.
+  const [linkLoading, setLinkLoading] = useState(true);
+  // Set when a link couldn't be loaded; shown instead of a fallback assessment.
+  const [linkError, setLinkError] = useState<'network' | 'inactive' | null>(null);
 
   useEffect(() => {
     const getParam = (key: string) => {
@@ -64,6 +72,23 @@ const App: React.FC = () => {
       return null;
     };
 
+    // Finds the company a link points to. Links with a companyId (every link the
+    // dashboard generates) fetch that one record; older name-only links search
+    // the full list with the same matching as before. Throws if the database
+    // can't be reached; undefined means it was reached and there's no match.
+    const resolveLinkCompany = async (): Promise<Company | undefined> => {
+      if (companyIdParam) return fetchCompanyStrict(companyIdParam);
+      const companies = await fetchAllCompaniesStrict();
+      const normalizedCompanyName = companyName?.toLowerCase().trim();
+      const namedCompanies = normalizedCompanyName
+        ? companies.filter(c => c.name.toLowerCase().trim() === normalizedCompanyName)
+        : [];
+      const targetTemplateId = resolveTemplateIdForType(typeParam);
+      return targetTemplateId
+        ? namedCompanies.find(c => c.templateId === targetTemplateId)
+        : namedCompanies[0];
+    };
+
     const loadData = async () => {
       // Check for Public/Embed Mode
       if (mode === 'public') {
@@ -75,68 +100,60 @@ const App: React.FC = () => {
       }
       // Check for Result View Mode
       else if (mode === 'view_result') {
-        const companies = await getCompanies();
-        const normalizedCompanyName = companyName?.toLowerCase().trim();
-        const namedCompanies = normalizedCompanyName
-          ? companies.filter(c => c.name.toLowerCase().trim() === normalizedCompanyName)
-          : [];
-        const targetTemplateId = resolveTemplateIdForType(typeParam);
-        const targetCompany = companyIdParam
-          ? companies.find(c => c.id === companyIdParam)
-          : targetTemplateId
-            ? namedCompanies.find(c => c.templateId === targetTemplateId)
-            : namedCompanies[0];
-
-        if (targetCompany) {
-          const data = await getAssessmentData(targetCompany.templateId || 'default-standard');
-          setAssessmentData(data);
-          setReportCompany(targetCompany);
-          setViewMode('SINGLE_REPORT');
-        } else {
-          setViewMode('LOGIN');
+        try {
+          const targetCompany = await resolveLinkCompany();
+          if (targetCompany) {
+            const data = await getAssessmentData(targetCompany.templateId || 'default-standard', true);
+            setAssessmentData(data);
+            setReportCompany(targetCompany);
+            setViewMode('SINGLE_REPORT');
+          } else {
+            setViewMode('LOGIN');
+          }
+        } catch (e) {
+          console.error('Error loading report link', e);
+          reportParticipantError('load', { companyId: companyIdParam, companyName, error: e });
+          setLinkError('network');
         }
       }
       // Check for Invite/Participant Mode
       else if (companyName || companyIdParam) {
-        const companies = await getCompanies();
-        const normalizedCompanyName = companyName?.toLowerCase().trim();
-        const namedCompanies = normalizedCompanyName
-          ? companies.filter(c => c.name.toLowerCase().trim() === normalizedCompanyName)
-          : [];
-        const targetTemplateId = resolveTemplateIdForType(typeParam);
-        const targetCompany = companyIdParam
-          ? companies.find(c => c.id === companyIdParam)
-          : targetTemplateId
-            ? namedCompanies.find(c => c.templateId === targetTemplateId)
-            : namedCompanies[0];
-        
-        if (targetCompany) {
-             // Determine template ID to use
-             let finalTemplateId = targetCompany.templateId || 'default-standard';
-             
-             // Fallback Logic: If templateId seems wrong/missing, check URL type param
-             if (!targetCompany.templateId && typeParam) {
-                 const fallbackTemplateId = resolveTemplateIdForType(typeParam);
-                 if (fallbackTemplateId) finalTemplateId = fallbackTemplateId;
-             }
+        try {
+          const targetCompany = await resolveLinkCompany();
 
-             const data = await getAssessmentData(finalTemplateId);
-             setAssessmentData(data);
-             setParticipantCompany(targetCompany.name);
-             setParticipantCompanyId(targetCompany.id); 
-             setViewMode('PARTICIPANT');
-        } else {
-             // Company not found in DB, show default standard
-             const data = await getAssessmentData('default-standard');
-             setAssessmentData(data);
-             setParticipantCompany(companyName || '');
-             setViewMode('PARTICIPANT');
+          if (targetCompany) {
+               // Determine template ID to use
+               let finalTemplateId = targetCompany.templateId || 'default-standard';
+
+               // Fallback Logic: If templateId seems wrong/missing, check URL type param
+               if (!targetCompany.templateId && typeParam) {
+                   const fallbackTemplateId = resolveTemplateIdForType(typeParam);
+                   if (fallbackTemplateId) finalTemplateId = fallbackTemplateId;
+               }
+
+               const data = await getAssessmentData(finalTemplateId, true);
+               setAssessmentData(data);
+               setParticipantCompany(targetCompany.name);
+               setParticipantCompanyId(targetCompany.id);
+               setViewMode('PARTICIPANT');
+          } else {
+               // The database was reached and this company doesn't exist (deleted, or
+               // a mistyped link). This used to show a generic assessment whose
+               // answers were never saved.
+               setLinkError('inactive');
+          }
+        } catch (e) {
+          // The database couldn't be reached. This used to look like "company not
+          // found" and silently showed the wrong assessment.
+          console.error('Error loading assessment link', e);
+          reportParticipantError('load', { companyId: companyIdParam, companyName, error: e });
+          setLinkError('network');
         }
       }
       // For admin access, Firebase Auth listener will handle loading state
     };
 
-    loadData();
+    loadData().finally(() => setLinkLoading(false));
   }, []);
 
   // Firebase Auth State Listener
@@ -289,7 +306,9 @@ const App: React.FC = () => {
     setViewMode('DASHBOARD');
   };
 
-  if (isLoading) return <div className="min-h-screen bg-slate-900 text-slate-50 flex items-center justify-center"><LoadingSpinner message="Loading..." /></div>;
+  if (isLoading || linkLoading) return <div className="min-h-screen bg-slate-900 text-slate-50 flex items-center justify-center"><LoadingSpinner message="Loading..." /></div>;
+
+  if (linkError) return <LinkErrorScreen kind={linkError} />;
 
   if (viewMode === 'PARTICIPANT' && assessmentData) {
     return (

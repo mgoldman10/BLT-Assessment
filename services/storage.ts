@@ -520,6 +520,79 @@ export const addResponseToCompany = async (companyId: string, response: Particip
     }
 };
 
+// --- Strict Loading (participant links) ---
+// Participant links must never silently fall back to a different assessment or
+// an empty company list. These helpers throw when the database can't be reached
+// (after retries) instead of returning an empty/default result, so the caller
+// can show an error. Admin screens keep using the forgiving functions above.
+
+const LOAD_ATTEMPT_TIMEOUT_MS = 10000;
+// The full company list (used only by older name-only links) is ~3 MB because it
+// includes every company's responses, so allow far longer on slow connections.
+const FULL_LIST_ATTEMPT_TIMEOUT_MS = 45000;
+
+// Rejects if the request hasn't finished in time, e.g. a network filter that
+// silently drops the connection rather than refusing it.
+export const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> =>
+    new Promise<T>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error(`Timed out after ${ms / 1000}s`)), ms);
+        promise.then(
+            value => { clearTimeout(timer); resolve(value); },
+            error => { clearTimeout(timer); reject(error); }
+        );
+    });
+
+// Read-only requests are safe to repeat, so retry momentary blips: 3 attempts,
+// pausing 1s then 2s between them.
+const withRetry = async <T>(request: () => Promise<T>, attempts = 3, timeoutMs = LOAD_ATTEMPT_TIMEOUT_MS): Promise<T> => {
+    let lastError: unknown;
+    for (let i = 0; i < attempts; i++) {
+        try {
+            return await withTimeout(request(), timeoutMs);
+        } catch (e) {
+            lastError = e;
+            if (i < attempts - 1) await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+        }
+    }
+    throw lastError;
+};
+
+// One-record lookup for links that carry a companyId (every link the dashboard
+// generates). Returns undefined only when the database confirms the company
+// doesn't exist; throws if the database can't be reached.
+export const fetchCompanyStrict = async (companyId: string): Promise<Company | undefined> => {
+    const database = db;
+    if (isConfigured() && database) {
+        const snap = await withRetry(() => getDoc(doc(database, COMPANIES_COL, companyId)));
+        return snap.exists() ? (snap.data() as Company) : undefined;
+    }
+    return getLocalData<Company>(LOCAL_COMPANIES_KEY).find(c => c.id === companyId);
+};
+
+// Full list, for older name-only links. Same data as getCompanies(), but throws
+// on failure instead of returning [] (which made every company look missing).
+export const fetchAllCompaniesStrict = async (): Promise<Company[]> => {
+    const database = db;
+    if (isConfigured() && database) {
+        const snap = await withRetry(() => getDocs(collection(database, COMPANIES_COL)), 3, FULL_LIST_ATTEMPT_TIMEOUT_MS);
+        return snap.docs.map(d => d.data() as Company);
+    }
+    return getLocalData<Company>(LOCAL_COMPANIES_KEY);
+};
+
+// Like getTemplate(), but throws if the database can't be reached instead of
+// substituting a built-in copy. A template that truly doesn't exist still falls
+// back to the built-in copy, as before.
+export const fetchTemplateStrict = async (id: string): Promise<AssessmentTemplate | undefined> => {
+    const database = db;
+    if (isConfigured() && database) {
+        const snap = await withRetry(() => getDoc(doc(database, TEMPLATES_COL, id)));
+        if (snap.exists()) return snap.data() as AssessmentTemplate;
+        return SEED_TEMPLATES.find(t => t.id === id);
+    }
+    return getTemplate(id);
+};
+
 // New: Mark company as viewed by admin
 export const markCompanyViewed = async (companyId: string): Promise<void> => {
     if (isConfigured() && db) {

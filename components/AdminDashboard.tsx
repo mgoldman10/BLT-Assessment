@@ -318,7 +318,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onViewR
         setAiTopic('');
     } catch (error) {
         console.error(error);
-        alert("Failed to generate assessment. Please check your API Key and try again.");
+        alert(error instanceof Error ? error.message : "Failed to generate assessment. Please try again.");
     } finally {
         setIsGeneratingAI(false);
     }

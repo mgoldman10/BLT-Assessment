@@ -145,9 +145,9 @@ const TeamReport: React.FC<TeamReportProps> = ({
             if (e instanceof QuotaExceededError) {
                 setAiError(e.message);
             } else if (e instanceof Error) {
-                setAiError(`AI Analysis failed: ${e.message}`);
+                setAiError(e.message);
             } else {
-                setAiError("AI Analysis failed. Check API Key configuration.");
+                setAiError("The AI summary is temporarily unavailable. Please try again later.");
             }
         } finally {
             setIsGeneratingAI(false);

@@ -1,6 +1,6 @@
 import { AssessmentData, AssessmentTemplate, Category, UserAnswers } from "../types";
 import { getTemplate, fetchTemplateStrict } from "./storage";
-import { GoogleGenAI, Type } from "@google/genai";
+import { auth } from "./firebaseConfig";
 
 const getTotalQuestions = (template: AssessmentTemplate) =>
   template.categories.reduce((count, category) => count + category.questions.length, 0);
@@ -57,53 +57,25 @@ export const getAssessmentData = async (templateId: string, strict = false): Pro
   };
 };
 
-export const generateAssessmentTemplate = async (topic: string): Promise<Omit<AssessmentTemplate, 'id'|'createdAt'|'updatedAt'>> => {
-  if (!process.env.API_KEY) {
-    throw new Error("API Key is missing. Cannot generate AI assessment.");
+// Gemini runs in Netlify functions (generateSummary / generateTemplate) so the
+// API key stays on the server and never ships in the site's code.
+const callAiFunction = async (name: string, payload: unknown): Promise<any> => {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  // Logged-in admins send their login token: required for template generation,
+  // and it exempts batch report printing from the per-visitor summary limit.
+  const token = await auth?.currentUser?.getIdToken().catch(() => null);
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`/.netlify/functions/${name}`, { method: 'POST', headers, body: JSON.stringify(payload) });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 429) {
+    throw new QuotaExceededError('The AI summary is busy right now. Please wait a minute, then click Retry.');
   }
+  if (!res.ok) throw new Error(data.error || 'The AI summary is temporarily unavailable. Please try again later.');
+  return data;
+};
 
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
-    config: {
-      systemInstruction: "You are an expert leadership coach and organizational psychologist creating professional team assessments. Generate a JSON response.",
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          name: { type: Type.STRING, description: "Professional title for the assessment" },
-          categories: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                name: { type: Type.STRING, description: "Name of the pillar/category" },
-                questions: {
-                  type: Type.ARRAY,
-                  items: { type: Type.STRING, description: "A statement to be rated 0-4" }
-                }
-              },
-              required: ["name", "questions"]
-            }
-          }
-        },
-        required: ["name", "categories"]
-      }
-    },
-    contents: `Create a professional team assessment template about: "${topic}".
-    Requirements:
-    1. Assessment Name should be professional.
-    2. Create 5 to 7 distinct categories (pillars) relevant to the topic.
-    3. Each category MUST have exactly 5 questions.
-    4. Questions must be clear statements that a team member would rate on a scale (0=Strongly Disagree to 4=Strongly Agree).
-    5. Tone: Professional, corporate, growth-oriented.`
-  });
-
-  const text = response.text;
-  if (!text) throw new Error("No response from AI");
-
-  const data = JSON.parse(text);
+export const generateAssessmentTemplate = async (topic: string): Promise<Omit<AssessmentTemplate, 'id'|'createdAt'|'updatedAt'>> => {
+  const data = await callAiFunction('generateTemplate', { topic });
 
   // Transform to internal structure with IDs
   const categories: Category[] = (data.categories || []).map((c: any, i: number) => ({
@@ -141,87 +113,6 @@ export class QuotaExceededError extends Error {
 }
 
 export const generateExecutiveSummary = async (data: AIAnalysisInput): Promise<string> => {
-    if (!process.env.API_KEY) throw new Error("API Key missing");
-
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
-    // Note: Scores are intentionally excluded from the data string below so the AI relies on context/labels
-    const prompt = `
-    Analyze the leadership assessment data for "${data.companyName}".
-    Total Respondents: ${data.respondentCount}.
-    
-    Data Context:
-    - Pillars: ${data.pillarScores.map(p => `${p.name} (${p.score.toFixed(1)})`).join(', ')}
-    - Identified Strengths: ${data.topStrengths.map(s => `${s.label}: "${s.text}"`).join('; ')}
-    - Identified Gaps: ${data.criticalGaps.map(g => `${g.label}: "${g.text}"`).join('; ')}
-    - Split Votes (Misalignment): ${data.misalignments.map(m => `${m.label}: "${m.text}" (${m.varianceDescription})`).join('; ')}
-
-    Task:
-    Write a Professional Executive Summary to fit on the bottom of a one-page report.
-    Output ONLY these 3 sections using Markdown headers:
-
-    ### Key Strengths
-    (Identify 3-5 overall themes or patterns where the team is excelling. Synthesize the data into broader concepts rather than just listing specific questions. Write 2-3 sentences per bullet point to provide depth.)
-
-    ### Critical Gaps
-    (Identify 3-5 overall themes or patterns where the team is struggling. Synthesize the low scores into broader systemic issues (e.g. "Lack of Strategic Clarity" instead of just "Question 5 is low"). Write 2-3 sentences per bullet point.)
-
-    ### Areas of Misalignment
-    ${data.respondentCount === 1 
-        ? "(Write 'N/A' because there is only 1 respondent, so misalignment is impossible to measure.)" 
-        : "(Provide 2-3 bullet points highlighting where the team is split. If no major splits, note that the team is aligned. Write about 2 sentences per bullet.)"
-    }
-
-    Constraint: Do not include an intro or conclusion. Use Markdown headers exactly as written above.
-    `;
-
-    try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt
-        });
-
-        return response.text || "Could not generate analysis.";
-    } catch (error: any) {
-        // Check for quota/rate limit errors - handle different error structures
-        const errorObj = error?.error || error;
-        const errorCode = errorObj?.code || errorObj?.statusCode;
-        const errorStatus = errorObj?.status || errorObj?.message;
-        
-        // Check for 429 or RESOURCE_EXHAUSTED
-        if (errorCode === 429 || errorStatus === 'RESOURCE_EXHAUSTED' || 
-            (typeof errorStatus === 'string' && errorStatus.includes('quota'))) {
-            
-            // Try to extract retry delay from various possible locations
-            let retrySeconds: number | undefined;
-            const details = errorObj?.details || errorObj?.error?.details || [];
-            
-            // Look for RetryInfo in details
-            const retryInfo = details.find((d: any) => 
-                d['@type'] === 'type.googleapis.com/google.rpc.RetryInfo' ||
-                d.retryDelay
-            );
-            
-            if (retryInfo?.retryDelay) {
-                const delayStr = retryInfo.retryDelay.toString().replace('s', '');
-                retrySeconds = Math.ceil(parseFloat(delayStr));
-            }
-            
-            // Also check message for retry time
-            if (!retrySeconds && errorObj?.message) {
-                const match = errorObj.message.match(/retry in ([\d.]+)s/i);
-                if (match) {
-                    retrySeconds = Math.ceil(parseFloat(match[1]));
-                }
-            }
-            
-            const message = retrySeconds 
-                ? `API quota exceeded (20 requests/day limit). Please wait ${retrySeconds} seconds and try again, or upgrade your Gemini API plan.`
-                : 'API quota exceeded (20 requests/day limit). Please wait a moment and try again, or upgrade your Gemini API plan.';
-            throw new QuotaExceededError(message, retrySeconds);
-        }
-        // Re-throw other errors
-        throw error;
-    }
+    const result = await callAiFunction('generateSummary', data);
+    return result.summary || "Could not generate analysis.";
 };
-

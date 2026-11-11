@@ -16,7 +16,7 @@ if (!admin.apps.length) {
   });
 }
 
-const MODEL = 'gemini-2.5-flash';
+const MODEL = 'gemini-3.6-flash';
 const UNAVAILABLE = 'AI template generation is temporarily unavailable. Please try again later.';
 
 const json = (statusCode, body) => ({ statusCode, body: JSON.stringify(body) });

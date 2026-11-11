@@ -19,7 +19,7 @@ if (!admin.apps.length) {
   });
 }
 
-const MODEL = 'gemini-2.5-flash';
+const MODEL = 'gemini-3.6-flash';
 // Report viewers (not logged in): at most this many summaries per connection per hour.
 // Logged-in admins aren't limited, so batch printing many reports still works.
 const MAX_PER_HOUR = 30;
@@ -131,7 +131,7 @@ exports.handler = async (event) => {
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY || '' },
       body: JSON.stringify({
         contents: [{ parts: [{ text: buildPrompt(data) }] }],
-        generationConfig: { maxOutputTokens: 4096, thinkingConfig: { thinkingBudget: 1024 } },
+        generationConfig: { maxOutputTokens: 8192 },
       }),
     });
     const result = await res.json().catch(() => ({}));
